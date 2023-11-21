@@ -103,6 +103,18 @@ impl Add<Vector> for Vector {
     }
 }
 
+impl Clone for Vector {
+    fn clone(&self) -> Self {
+        Vector { data: self.data.clone() }
+    }
+}
+
+impl Clone for Matrix {
+    fn clone(&self) -> Self {
+        Matrix { data: self.data.clone(), nrows: self.nrows, ncols: self.ncols }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 struct Layer {
     weights: Matrix,
@@ -110,9 +122,13 @@ struct Layer {
 }
 
 impl Layer { 
-    fn forward(self, inputs: Vector) -> Vector {
-        self.weights * inputs + self.biases
+    fn forward(&self, inputs: &Vector) -> Vector {
+        self.weights.clone() * inputs.clone() + self.biases.clone()
     }
+}
+
+fn main() { 
+    println!("Hello World");
 }
 
 
@@ -178,7 +194,10 @@ mod tests {
 
         let inputs = Vector { data: vec![1.0, 2.0] };
         let outputs = Vector { data: vec![5.0, 11.0] };
-        assert_eq!(layer.forward(inputs), outputs);
+        let layer_outputs = layer.forward(&inputs);
+        assert_eq!(layer_outputs.clone(), outputs.clone());
+        let layer2 = layer.forward(&layer_outputs);
+        assert_eq!(layer2, Vector { data: vec![27.0, 59.0] });
     }
 }
 

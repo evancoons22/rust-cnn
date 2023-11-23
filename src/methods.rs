@@ -131,6 +131,7 @@ pub mod linalg {
 
 pub mod nn { 
     use super::linalg::{Matrix, Vector};
+    use crate::activation::Activation::Tanh;
 
     #[derive(Debug, PartialEq)]
     pub struct Layer {

@@ -131,7 +131,7 @@ pub mod linalg {
 
 pub mod nn { 
     use super::linalg::{Matrix, Vector};
-    use crate::activation::Activation::Tanh;
+    use crate::activation::activations::Activation;
 
     #[derive(Debug, PartialEq)]
     pub struct Layer {
@@ -149,6 +149,7 @@ pub mod nn {
                 output_size: self.output_size,
                 weights: self.weights.clone(),
                 biases: self.biases.clone(),
+                activation: self.activation.clone(),
             }
         }
     }
@@ -163,6 +164,7 @@ pub mod nn {
                 output_size,
                 weights: Matrix::rand(output_size, input_size),
                 biases: Vector::new(output_size),
+                activation: Activation::None,
             }
         }
     }
@@ -242,6 +244,7 @@ mod tests {
 
     #[test]
     fn test_layer_forward() { 
+        use crate::activation::activations::Activation;
         let layer = Layer { 
             input_size: 2,
             output_size: 2,
@@ -253,6 +256,7 @@ mod tests {
             biases: Vector { 
                 data: vec![0.0, 0.0],
             },
+            activation: Activation::None,
         };
 
         let inputs = Vector { data: vec![1.0, 2.0] };
@@ -265,6 +269,7 @@ mod tests {
 
     #[test]
     fn network_forward_twice() { 
+        use crate::activation::activations::Activation;
         let layer = Layer { 
             input_size: 2,
             output_size: 2,
@@ -276,6 +281,7 @@ mod tests {
             biases: Vector { 
                 data: vec![0.0, 0.0],
             },
+            activation: Activation::None,
         };
 
         let inputs = Vector { data: vec![1.0, 2.0] };

@@ -19,11 +19,12 @@ pub mod activations {
         }
     }
 
-    trait ActivationFunction {
+    pub trait ActivationFunction {
         fn forward(&self, x: f64) -> f64;
         fn backward(&self, x: f64, dy: f64) -> f64;
     }
 
+    // implement ActivatonFunction for Activation
     impl ActivationFunction for Activation { 
         fn forward(&self, x: f64) -> f64 {
             match self {

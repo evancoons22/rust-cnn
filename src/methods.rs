@@ -1,18 +1,12 @@
 pub mod linalg {
 
     use std::ops::Mul;
-    use std::ops::Add;
     
     #[derive(Debug, PartialEq)]
     pub struct Matrix {
         pub nrows: usize,
         pub ncols: usize,
         pub data: Vec<Vec<f64>>,
-    }
-
-    #[derive(Debug, PartialEq)]
-    pub struct Vector {
-        pub data: Vec<f64>,
     }
 
 
@@ -44,18 +38,6 @@ pub mod linalg {
 
     }
 
-    impl Vector { 
-        pub fn len(&self) -> usize {
-            self.data.len()
-        }
-
-        pub fn new(len: usize) -> Self {
-            Vector {
-                data: vec![0.0; len],
-            }
-        }
-    }
-
 
     impl Mul<Matrix> for Matrix {
         type Output = Self;
@@ -74,52 +56,51 @@ pub mod linalg {
         }
     }
 
-    impl Mul<Vector> for Matrix {
-        type Output = Vector;
+    impl Mul<Vec<f64>> for Matrix {
+        type Output = Vec<f64>;
 
-        fn mul(self, rhs: Vector) -> Vector {
+        fn mul(self, rhs: Vec<f64>) -> Vec<f64> {
             assert_eq!(self.ncols(), rhs.len());
-            let mut result = Vector::new(self.nrows());
+            //let mut result = Vec<f64>::new(self.nrows());
+            let mut result = vec![0.0; self.nrows()];
             for i in 0..self.nrows() {
                 for j in 0..rhs.len() {
-                    result.data[i] += self.data[i][j] * rhs.data[j];
+                    result[i] += self.data[i][j] * rhs[j];
                 }
             }
             result
         }
     }
 
-    impl Mul<Vector> for Vector {
-        type Output = f64;
-
-        fn mul(self, rhs: Vector) -> f64 {
-            assert_eq!(self.len(), rhs.len());
-            let mut result = 0.0;
-            for i in 0..self.len() {
-                result += self.data[i] * rhs.data[i];
+    impl Mul<&Vec<f64>> for &Matrix {
+        type Output = Vec<f64>;
+        fn mul(self, rhs: &Vec<f64>) -> Vec<f64> {
+            assert_eq!(self.ncols(), rhs.len());
+            //let mut result = Vec<f64>::new(self.nrows());
+            let mut result = vec![0.0; self.nrows()];
+            for i in 0..self.nrows() {
+                for j in 0..rhs.len() {
+                    result[i] += self.data[i][j] * rhs[j];
+                }
             }
             result
         }
     }
 
-    impl Add<Vector> for Vector {
-        type Output = Self;
-
-        fn add(self, rhs: Vector) -> Self {
-            assert_eq!(self.len(), rhs.len());
-            let mut result = Vector::new(self.len());
-            for i in 0..self.len() {
-                result.data[i] = self.data[i] + rhs.data[i];
-            }
-            result
+    pub fn dot_product(vec1: &[f64], vec2: &[f64]) -> f64 {
+        if vec1.len() != vec2.len() {
+            panic!("Vectors must be of equal length");
         }
+        vec1.iter().zip(vec2.iter()).map(|(&x, &y)| x * y).sum()
     }
 
-    impl Clone for Vector {
-        fn clone(&self) -> Self {
-            Vector { data: self.data.clone() }
+    pub fn add(vec1: &[f64], vec2: &[f64]) -> Vec<f64> {
+        if vec1.len() != vec2.len() {
+            panic!("Vectors must be of equal length");
         }
+        vec1.iter().zip(vec2.iter()).map(|(&x, &y)| x + y).collect()
     }
+
 
     impl Clone for Matrix {
         fn clone(&self) -> Self {
@@ -130,15 +111,17 @@ pub mod linalg {
 }
 
 pub mod nn { 
-    use super::linalg::{Matrix, Vector};
+    use super::linalg::Matrix;
+    use super::linalg::add;
     use crate::activation::activations::Activation;
+    use crate::activation::activations::ActivationFunction;
 
     #[derive(Debug, PartialEq)]
     pub struct Layer {
         pub input_size: usize,
         pub output_size: usize,
         pub weights: Matrix,
-        pub biases: Vector,
+        pub biases: Vec<f64>,
         pub activation: Activation,
     }
 
@@ -155,15 +138,15 @@ pub mod nn {
     }
 
     impl Layer { 
-        pub fn forward(&self, inputs: &Vector) -> Vector {
-            self.weights.clone() * inputs.clone() + self.biases.clone()
+        pub fn forward(&self, inputs: &Vec<f64>) -> Vec<f64> {
+            add(&(&self.weights.clone() * &inputs.clone()), &self.biases.clone()).iter().map(|x| self.activation.forward(*x)).collect()
         }
         pub fn new(input_size: usize, output_size: usize) -> Self {
             Layer {
                 input_size,
                 output_size,
                 weights: Matrix::rand(output_size, input_size),
-                biases: Vector::new(output_size),
+                biases: vec![0.0; output_size],
                 activation: Activation::None,
             }
         }
@@ -184,7 +167,7 @@ pub mod nn {
             self.layers.push(layer);
         }
 
-        pub fn forward(&self, inputs: &Vector) -> Vector {
+        pub fn forward(&self, inputs: &Vec<f64>) -> Vec<f64> {
             let mut outputs = inputs.clone();
             for layer in &self.layers {
                 outputs = layer.forward(&outputs);
@@ -196,7 +179,7 @@ pub mod nn {
 
 #[cfg(test)]
 mod tests {
-    use super::linalg::{Matrix, Vector};
+    use super::linalg::{Matrix, dot_product};
     use super::nn::{Layer, Network};
 
     #[test]
@@ -225,21 +208,17 @@ mod tests {
             ncols: 3,
             data: vec![vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0]],
         };
-        let b = Vector {
-            data: vec![1.0, 2.0, 3.0],
-        };
-        let c = Vector {
-            data: vec![14.0, 32.0],
-        };
+        let b = vec![1.0, 2.0, 3.0];
+        let c =  vec![14.0, 32.0];
         assert_eq!(a * b, c);
     }
 
     #[test]
     fn test_vec_vec_mul() { 
-        let a = Vector { data: vec![1.0, 2.0, 3.0] };
-        let b = Vector { data: vec![1.0, 2.0, 3.0] };
+        let a = vec![1.0, 2.0, 3.0];
+        let b = vec![1.0, 2.0, 3.0];
         let c: f64 = 14.0;
-        assert_eq!(a * b, c);
+        assert_eq!(dot_product(&a, &b), c);
     }
 
     #[test]
@@ -253,18 +232,16 @@ mod tests {
                 ncols: 2,
                 data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
             },
-            biases: Vector { 
-                data: vec![0.0, 0.0],
-            },
+            biases: vec![0.0, 0.0],
             activation: Activation::None,
         };
 
-        let inputs = Vector { data: vec![1.0, 2.0] };
-        let outputs = Vector { data: vec![5.0, 11.0] };
+        let inputs = vec![1.0, 2.0];
+        let outputs = vec![5.0, 11.0];
         let layer_outputs = layer.forward(&inputs);
         assert_eq!(layer_outputs.clone(), outputs.clone());
         let layer2 = layer.forward(&layer_outputs);
-        assert_eq!(layer2, Vector { data: vec![27.0, 59.0] });
+        assert_eq!(layer2, vec![27.0, 59.0]);
     }
 
     #[test]
@@ -278,15 +255,13 @@ mod tests {
                 ncols: 2,
                 data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
             },
-            biases: Vector { 
-                data: vec![0.0, 0.0],
-            },
+            biases: vec![0.0, 0.0],
             activation: Activation::None,
         };
 
-        let inputs = Vector { data: vec![1.0, 2.0] };
+        let inputs = vec![1.0, 2.0];
         let network = Network { layers: vec![layer.clone(), layer.clone()] };
-        assert_eq!(network.forward(&inputs), Vector { data: vec![27.0, 59.0] })
+        assert_eq!(network.forward(&inputs), vec![27.0, 59.0]);
 
         }
 
@@ -301,7 +276,7 @@ mod tests {
         // add 1 layer to the network
         let mut network = Network::new();
         network.add_layer(layer.clone());
-        let inputs = Vector { data: vec![1.0, 2.0] };
+        let inputs = vec![1.0, 2.0];
         let outputs = layer.forward(&inputs);
         assert_eq!(outputs.len(), 2);
     }
@@ -310,6 +285,21 @@ mod tests {
     fn rand_matrix() {
         let matrix = Matrix::rand(2, 2);
         assert_eq!(matrix.nrows(), 2);
+    }
+
+    #[test]
+    fn activation_test() { 
+        let mut layer = Layer::new(2, 2);
+        layer.weights = Matrix { 
+            nrows: 2,
+            ncols: 2,
+            data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+        };
+        layer.activation = crate::activation::activations::Activation::Sigmoid;
+        let inputs = vec![1.0, 2.0];
+        let outputs = layer.forward(&inputs);
+        println!("{:?}", outputs);
+        assert_eq!(outputs.len(), 2);
     }
 }
 

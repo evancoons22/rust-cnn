@@ -152,6 +152,7 @@ pub mod nn {
         }
     }
 
+    #[derive(Debug, PartialEq)]
     pub struct Network {
         pub layers: Vec<Layer>,
     }

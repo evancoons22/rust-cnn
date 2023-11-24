@@ -121,7 +121,7 @@ pub mod nn {
     use super::linalg::add;
     use crate::activation::activations::Activation;
     use crate::activation::activations::ActivationFunction;
-    use super::loss::LossFunction;
+    use super::loss::*;
 
     #[derive(Debug, PartialEq)]
     pub struct Layer {
@@ -146,7 +146,8 @@ pub mod nn {
 
     impl Layer { 
         pub fn forward(&self, inputs: &Vec<f64>) -> Vec<f64> {
-            add(&(&self.weights.clone() * &inputs.clone()), &self.biases.clone()).iter().map(|x| self.activation.forward(*x)).collect()
+            // applies network weights AND activates
+            self.activation.forward(&add(&(&self.weights * &inputs), &self.biases))
         }
         pub fn new(input_size: usize, output_size: usize) -> Self {
             Layer {
@@ -163,7 +164,6 @@ pub mod nn {
     pub struct Network {
         pub layers: Vec<Layer>,
         pub loss: LossFunction,
-        pub lossnumber: f64,
     }
 
     impl Network { 
@@ -171,7 +171,6 @@ pub mod nn {
             Network {
                 layers: Vec::new(),
                 loss: LossFunction::MSE,
-                lossnumber: 0.0,
             }
         }
 
@@ -187,13 +186,30 @@ pub mod nn {
             outputs
         }
 
+        pub fn backward(&self, inputs: &Vec<f64>, y_true: &Vec<f64>) -> Vec<Vec<f64>> {
+            let mut outputs = inputs.clone();
+            let mut outputs_list = Vec::new();
+            outputs_list.push(outputs.clone());
+            for layer in &self.layers {
+                outputs = layer.forward(&outputs);
+                outputs_list.push(outputs.clone());
+            }
+            let mut gradients = Vec::new();
+            let mut next_grad = self.loss.backward(&outputs, &y_true);
+            for (layer, outputs) in self.layers.iter().rev().zip(outputs_list.iter().rev()) {
+                let grad = layer.activation.backward(&outputs, &next_grad, &self.loss);
+                next_grad = &layer.weights * &grad;
+                gradients.push(grad);
+            }
+            gradients.reverse();
+            gradients
+        }
+
+
         pub fn classify(&self, outputs: &Vec<f64>) -> Vec<f64> {
             outputs.iter().map(|x| if *x > 0.5 { 1.0 } else { 0.0 }).collect()
         }
 
-        pub fn lossupdate(&self, outputs: &Vec<f64>, targets: &Vec<f64>) -> Vec<f64> {
-            self.lossnumber = self.loss.forward(&outputs, &targets)
-        }
     }
 }
 
@@ -208,17 +224,29 @@ pub mod loss {
     }
 
     pub trait Loss {
-        fn forward(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> f64;
+        fn getloss(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> f64;
         fn backward(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> Vec<f64>;
     }
 
-    impl Loss for LossFunction{
-        fn forward(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> f64 {
-            match &self {
-                LossFunction::MSE => (y_pred.len() as f64) * dot_product(&subtract(y_pred, y_true), &subtract(y_pred, y_true)),
-                LossFunction::CrossEntropy => (y_pred.len() as f64) * dot_product(y_true, &y_pred.iter().map(|x| x.ln()).collect::<Vec<f64>>()),
+    impl Clone for LossFunction {
+        fn clone(&self) -> Self {
+            match self {
+                LossFunction::MSE => LossFunction::MSE,
+                LossFunction::CrossEntropy => LossFunction::CrossEntropy,
             }
         }
+    }
+
+    impl Loss for LossFunction{
+        fn getloss(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> f64 {
+            match &self {
+                LossFunction::MSE => (y_pred.len() as f64) * dot_product(&subtract(y_pred, y_true), &subtract(y_pred, y_true)),
+                //write cross entropy without the dot product function
+                LossFunction::CrossEntropy => y_pred.iter().zip(y_true.iter()).map(|(x, y)| -1.0 * (y * x.ln())).sum::<f64>(),
+                //LossFunction::CrossEntropy => dot_product(&y_true, &y_pred.iter().map(|x| x.ln()).collect::<Vec<f64>>()),
+            }
+        }
+
         fn backward(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> Vec<f64> {
             match self {
                 LossFunction::MSE => y_pred.iter().zip(y_true.iter()).map(|(x, y)| 2.0 * (x - y)).collect::<Vec<f64>>(),
@@ -314,7 +342,7 @@ mod tests {
         };
 
         let inputs = vec![1.0, 2.0];
-        let network = Network { layers: vec![layer.clone(), layer.clone()] };
+        let network = Network { layers: vec![layer.clone(), layer.clone()], loss: super::loss::LossFunction::MSE };
         assert_eq!(network.forward(&inputs), vec![27.0, 59.0]);
 
         }
@@ -363,7 +391,37 @@ mod tests {
         let y_pred = vec![0.0, 0.0, 1.0];
         let y_true = vec![0.0, 0.0, 1.0];
         let loss = LossFunction::MSE;
-        assert_eq!(loss.forward(&y_pred, &y_true), 0.0);
+        assert_eq!(loss.getloss(&y_pred, &y_true), 0.0);
     }
+
+    #[test]
+    fn test_loss_backward() {
+        use super::loss::LossFunction;
+        use super::loss::Loss;
+        let y_pred = vec![0.0, 0.0, 1.0];
+        let y_true = vec![0.0, 0.0, 1.0];
+        let loss = LossFunction::MSE;
+        assert_eq!(loss.backward(&y_pred, &y_true), vec![0.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn test_dot_product() {
+        let a = vec![1.0, 2.0, 3.0];
+        let b = vec![1.0, 2.0, 3.0];
+        let c: f64 = 14.0;
+        assert_eq!(super::linalg::dot_product(&a, &b), c);
+    }
+
+    #[test]
+    fn test_loss_cross_entropy() {
+        use super::loss::LossFunction;
+        use super::loss::Loss;
+        let y_pred = vec![0.001, 0.001, 0.998];
+        let y_true = vec![0.0, 0.0, 1.0];
+        let loss = LossFunction::CrossEntropy;
+        assert_eq!(loss.getloss(&y_pred, &y_true), 0.0020020026706730793);
+        
+    }
+
 }
 

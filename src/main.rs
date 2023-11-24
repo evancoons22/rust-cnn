@@ -4,6 +4,7 @@ pub mod activation;
 use methods::nn::{Network, Layer};
 use methods::linalg::Matrix;  
 use activation::activations::Activation;
+use methods::loss::*;
 
 fn main() {
 
@@ -32,4 +33,10 @@ fn main() {
     let outputs = network.forward(&inputs);
 
     println!("{:?}", outputs);
+
+    let y_pred = vec![0.001, 0.001, 0.998];
+    let y_true = vec![0.0, 0.0, 1.0];
+    let loss = LossFunction::CrossEntropy;
+
+    println!("{:?}", loss.getloss(&y_pred, &y_true));
 }

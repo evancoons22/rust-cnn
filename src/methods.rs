@@ -101,6 +101,12 @@ pub mod linalg {
         vec1.iter().zip(vec2.iter()).map(|(&x, &y)| x + y).collect()
     }
 
+    pub fn subtract(vec1: &[f64], vec2: &[f64]) -> Vec<f64> { 
+        if vec1.len() != vec2.len() { 
+            panic!("Vectors must be of equal length");
+        }
+        vec1.iter().zip(vec2.iter()).map(|(&x, &y)| x - y).collect()
+    }
 
     impl Clone for Matrix {
         fn clone(&self) -> Self {
@@ -176,6 +182,40 @@ pub mod nn {
             outputs
         }
     }
+}
+
+pub mod loss {
+
+    use super::linalg::{add, subtract, dot_product};
+
+    #[derive(Debug, PartialEq)]
+    pub enum LossFunction {
+        MSE,
+        CrossEntropy,
+    }
+
+    pub trait Loss {
+        fn forward(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> f64;
+        fn backward(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> Vec<f64>;
+    }
+
+    impl Loss for LossFunction{
+        fn forward(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> f64 {
+            match &self {
+                LossFunction::MSE => (y_pred.len() as f64) * dot_product(&subtract(y_pred, y_true), &subtract(y_pred, y_true)),
+                LossFunction::CrossEntropy => (y_pred.len() as f64) * dot_product(y_true, &y_pred.iter().map(|x| x.ln()).collect::<Vec<f64>>()),
+            }
+        }
+        fn backward(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> Vec<f64> {
+            match self {
+                LossFunction::MSE => y_pred.iter().zip(y_true.iter()).map(|(x, y)| 2.0 * (x - y)).collect::<Vec<f64>>(),
+                LossFunction::CrossEntropy => y_pred.iter().zip(y_true.iter()).map(|(x, y)| x - y).collect::<Vec<f64>>(),
+            }
+
+        }
+    }
+
+
 }
 
 #[cfg(test)]
@@ -301,6 +341,15 @@ mod tests {
         let outputs = layer.forward(&inputs);
         println!("{:?}", outputs);
         assert_eq!(outputs.len(), 2);
+    }
+
+    #[test]
+    fn test_loss() {
+        use super::loss::LossFunction;
+        let y_pred = vec![0.0, 0.0, 1.0];
+        let y_true = vec![0.0, 0.0, 1.0];
+        let loss = LossFunction::MSE;
+        assert_eq!(loss.forward(&y_pred, &y_true), 0.0);
     }
 }
 

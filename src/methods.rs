@@ -9,6 +9,7 @@ pub mod linalg {
         pub data: Vec<Vec<f64>>,
     }
 
+    use rand::Rng;
 
     impl Matrix { 
         pub fn nrows(&self) -> usize {
@@ -25,7 +26,6 @@ pub mod linalg {
             }
         }
         pub fn rand(nrows: usize, ncols: usize) -> Self {
-            use rand::Rng;
             let mut rng = rand::thread_rng();
             Matrix {
                 nrows,
@@ -121,6 +121,7 @@ pub mod nn {
     use super::linalg::add;
     use crate::activation::activations::Activation;
     use crate::activation::activations::ActivationFunction;
+    use super::loss::LossFunction;
 
     #[derive(Debug, PartialEq)]
     pub struct Layer {
@@ -161,12 +162,16 @@ pub mod nn {
     #[derive(Debug, PartialEq)]
     pub struct Network {
         pub layers: Vec<Layer>,
+        pub loss: LossFunction,
+        pub lossnumber: f64,
     }
 
     impl Network { 
         pub fn new() -> Self {
             Network {
                 layers: Vec::new(),
+                loss: LossFunction::MSE,
+                lossnumber: 0.0,
             }
         }
 
@@ -181,12 +186,20 @@ pub mod nn {
             }
             outputs
         }
+
+        pub fn classify(&self, outputs: &Vec<f64>) -> Vec<f64> {
+            outputs.iter().map(|x| if *x > 0.5 { 1.0 } else { 0.0 }).collect()
+        }
+
+        pub fn lossupdate(&self, outputs: &Vec<f64>, targets: &Vec<f64>) -> Vec<f64> {
+            self.lossnumber = self.loss.forward(&outputs, &targets)
+        }
     }
 }
 
 pub mod loss {
 
-    use super::linalg::{add, subtract, dot_product};
+    use super::linalg::{subtract, dot_product};
 
     #[derive(Debug, PartialEq)]
     pub enum LossFunction {
@@ -346,6 +359,7 @@ mod tests {
     #[test]
     fn test_loss() {
         use super::loss::LossFunction;
+        use super::loss::Loss;
         let y_pred = vec![0.0, 0.0, 1.0];
         let y_true = vec![0.0, 0.0, 1.0];
         let loss = LossFunction::MSE;

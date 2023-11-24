@@ -1,9 +1,9 @@
 pub mod methods;
 pub mod activation;
 
-use crate::methods::nn::{Network, Layer};
-use crate::methods::linalg::Matrix;  
-use crate::activation::activations::Activation;
+use methods::nn::{Network, Layer};
+use methods::linalg::Matrix;  
+use activation::activations::Activation;
 
 fn main() {
 
@@ -31,9 +31,5 @@ fn main() {
     let inputs = vec![2.0, 1.0];
     let outputs = network.forward(&inputs);
 
-    let inputs = vec![8.0, 1.0];
-    let outputs2 = network.forward(&inputs);
-
     println!("{:?}", outputs);
-    println!("{:?}", outputs2);
 }

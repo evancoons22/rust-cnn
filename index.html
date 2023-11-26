@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WASM App</title>
+    <script type="module">
+        import init from './pkg/rust-cnn.js';
+
+        async function runWasm() {
+            const wasm = await init();
+            const result = wasm.run_network([1,2]);
+            console.log(result);
+        }
+
+        runWasm();
+    </script>
+</head>
+<body>
+    <h1>WebAssembly App</h1>
+</body>
+</html>

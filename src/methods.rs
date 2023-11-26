@@ -158,6 +158,16 @@ pub mod nn {
                 activation: Activation::None,
             }
         }
+
+        pub fn weight_backwards(&self, inputs: &Vec<f64>, dy: &Vec<f64>) -> Matrix {
+            let mut result = Matrix::new(self.output_size, self.input_size);
+            for i in 0..self.output_size {
+                for j in 0..self.input_size {
+                    result.data[i][j] = inputs[j] * dy[i];
+                }
+            }
+            result
+        }
     }
 
     #[derive(Debug, PartialEq)]
@@ -204,7 +214,7 @@ pub mod nn {
             gradients.reverse();
             gradients
         }
-
+        
 
         pub fn classify(&self, outputs: &Vec<f64>) -> Vec<f64> {
             outputs.iter().map(|x| if *x > 0.5 { 1.0 } else { 0.0 }).collect()
@@ -241,9 +251,7 @@ pub mod loss {
         fn getloss(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> f64 {
             match &self {
                 LossFunction::MSE => (y_pred.len() as f64) * dot_product(&subtract(y_pred, y_true), &subtract(y_pred, y_true)),
-                //write cross entropy without the dot product function
                 LossFunction::CrossEntropy => y_pred.iter().zip(y_true.iter()).map(|(x, y)| -1.0 * (y * x.ln())).sum::<f64>(),
-                //LossFunction::CrossEntropy => dot_product(&y_true, &y_pred.iter().map(|x| x.ln()).collect::<Vec<f64>>()),
             }
         }
 

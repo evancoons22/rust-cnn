@@ -1,0 +1,6 @@
+1 - install `rustup target add wasm32-unknown-unknown`
+2 - install `cargo install wasm-bindgen-cli`
+3 - cargo build --target wasm32-unknown-unknown --release
+4 - create webpage with js and html
+5 - wasm-bindgen target/wasm32-unknown-unknown/release/wasm_project.wasm --out-dir ./pkg --web
+6 - pyhton3 -m http.server

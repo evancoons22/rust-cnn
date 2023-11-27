@@ -5,9 +5,10 @@ use crate::methods::nn::{Network, Layer};
 use crate::methods::linalg::Matrix;
 use crate::activation::activations::Activation;
 
-#[no_mangle]
-pub extern "C" fn run_network(inputs: Vec<f64>) -> Vec<f64> {
+
+pub fn run_network(inputs: Vec<f64>) -> Vec<f64> {
     let mut network = Network::new();
+
 
     let layer1 = Layer {
         input_size: 2,
@@ -15,6 +16,7 @@ pub extern "C" fn run_network(inputs: Vec<f64>) -> Vec<f64> {
         weights: Matrix::rand(3, 2),
         biases: vec![0.0; 3],
         activation: Activation::None,
+        activationdata: vec![0.0; 3],
     };
 
     let layer2 = Layer {
@@ -23,7 +25,9 @@ pub extern "C" fn run_network(inputs: Vec<f64>) -> Vec<f64> {
         weights: Matrix::rand(2, 3),
         biases: vec![0.0; 2],
         activation: Activation::Tanh,
+        activationdata: vec![0.0; 2],
     };
+
 
     network.add_layer(layer1);
     network.add_layer(layer2);
@@ -42,3 +46,4 @@ pub extern "C" fn run_network(inputs: Vec<f64>) -> Vec<f64> {
     
     outputs
 }
+

@@ -11,7 +11,7 @@ pub mod activations {
 
     pub trait ActivationFunction {
         fn forward(&self, x: &[f64]) -> Vec<f64>;
-        fn backward(&self, x: &[f64], dy: &[f64], l: &LossFunction) -> Vec<f64>;
+        fn backward(&self, x: &[f64], l: &LossFunction) -> Vec<f64>;
     }
 
     impl ActivationFunction for Activation {
@@ -25,20 +25,20 @@ pub mod activations {
             }
         }
 
-        fn backward(&self, x: &[f64], dy: &[f64], l: &LossFunction) -> Vec<f64> {
+        fn backward(&self, x: &[f64], l: &LossFunction) -> Vec<f64> {
             match self {
-                Activation::Relu => x.iter().zip(dy).map(|(&x, &dy)| if x > 0.0 { dy } else { 0.0 }).collect(),
-                Activation::Tanh => x.iter().zip(dy).map(|(&x, &dy)| 1.0 - self.forward(&[x])[0].powi(2) * dy).collect(),
-                Activation::Sigmoid => x.iter().zip(dy).map(|(&x, &dy)| {
+                Activation::Relu => x.iter().map(|&x| if x > 0.0 { 1.0 } else { 0.0 }).collect(),
+                Activation::Tanh => x.iter().map(|&x| 1.0 - self.forward(&[x])[0].powi(2)).collect(),
+                Activation::Sigmoid => x.iter().map(|&x| {
                     let fwd = self.forward(&[x])[0];
-                    fwd * (1.0 - fwd) * dy
+                    fwd * (1.0 - fwd)
                 }).collect(),
-                Activation::None => dy.to_vec(),
+                Activation::None => vec![1.0; x.len()],
                 Activation::Softmax => match l {
                     LossFunction::CrossEntropy => {
                         let y_pred = self.forward(x);
-                        let mut y_true = vec![0.0; y_pred.len()];
-                        y_true[dy[0] as usize] = 1.0;
+                        let y_true = vec![0.0; y_pred.len()];
+                        //y_true[dy[0] as usize] = 1.0;
                         y_pred.iter().zip(y_true).map(|(&y_pred, y_true)| y_pred - y_true).collect()
                     }
                     _ => panic!("Backward not implemented for Softmax"),

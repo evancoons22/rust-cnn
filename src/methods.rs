@@ -94,6 +94,16 @@ pub mod linalg {
         vec1.iter().zip(vec2.iter()).map(|(&x, &y)| x * y).sum()
     }
 
+    pub fn transpose(matrix: Matrix) -> Matrix {
+        let mut result = Matrix::new(matrix.ncols(), matrix.nrows());
+        for i in 0..matrix.nrows() {
+            for j in 0..matrix.ncols() {
+                result.data[j][i] = matrix.data[i][j];
+            }
+        }
+        result
+    }
+
     pub fn add(vec1: &[f64], vec2: &[f64]) -> Vec<f64> {
         if vec1.len() != vec2.len() {
             panic!("Vectors must be of equal length");
@@ -130,6 +140,7 @@ pub mod nn {
         pub weights: Matrix,
         pub biases: Vec<f64>,
         pub activation: Activation,
+        pub activationdata: Vec<f64>,
     }
 
     impl Clone for Layer {
@@ -140,14 +151,16 @@ pub mod nn {
                 weights: self.weights.clone(),
                 biases: self.biases.clone(),
                 activation: self.activation.clone(),
+                activationdata: self.activationdata.clone(),
             }
         }
     }
 
     impl Layer { 
-        pub fn forward(&self, inputs: &Vec<f64>) -> Vec<f64> {
+        pub fn forward(&mut self, inputs: &Vec<f64>) -> Vec<f64> {
             // applies network weights AND activates
-            self.activation.forward(&add(&(&self.weights * &inputs), &self.biases))
+            self.activationdata = self.activation.forward(&add(&(&self.weights * &inputs), &self.biases));
+            self.activationdata.clone()
         }
         pub fn new(input_size: usize, output_size: usize) -> Self {
             Layer {
@@ -156,15 +169,38 @@ pub mod nn {
                 weights: Matrix::rand(output_size, input_size),
                 biases: vec![0.0; output_size],
                 activation: Activation::None,
+                activationdata: vec![0.0; output_size],
             }
         }
 
-        pub fn weight_backwards(&self, inputs: &Vec<f64>, dy: &Vec<f64>) -> Matrix {
+        pub fn weight_grad_backwards(&self, inputs: &Vec<f64>, a: &Vec<f64>, agradprev: &Vec<f64>) -> Matrix {
             let mut result = Matrix::new(self.output_size, self.input_size);
-            for i in 0..self.output_size {
-                for j in 0..self.input_size {
-                    result.data[i][j] = inputs[j] * dy[i];
+            let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
+            for j in 0..self.output_size {
+                for k in 0..self.input_size {
+                    result.data[k][j] = actgrad[j] * a[k] * agradprev[j];
                 }
+            }
+            result
+        }
+
+        pub fn bias_grad_backwards(&self, inputs: &Vec<f64>, agradprev: &Vec<f64>) -> Vec<f64> {
+            let mut result = vec![0.0; self.output_size];
+            let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
+            for j in 0..self.output_size {
+                result[j] = actgrad[j] * agradprev[j];
+            }
+            result
+        }
+
+
+        pub fn activation_grad_backward(&self, inputs: &Vec<f64>, weights: Matrix, agradnext: &Vec<f64>) -> Vec<f64> {
+            use super::linalg::*;
+            let mut result = vec![0.0; self.output_size];
+            let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
+            let tweights = transpose(weights.clone());
+            for k in 0..self.input_size {
+                result[k] += dot_product(&tweights.data[k], &add(&actgrad, &agradnext));
             }
             result
         }
@@ -188,33 +224,14 @@ pub mod nn {
             self.layers.push(layer);
         }
 
-        pub fn forward(&self, inputs: &Vec<f64>) -> Vec<f64> {
+        pub fn forward(&mut self, inputs: &Vec<f64>) -> Vec<f64> {
             let mut outputs = inputs.clone();
-            for layer in &self.layers {
+            for layer in &mut self.layers {
                 outputs = layer.forward(&outputs);
             }
             outputs
         }
 
-        pub fn backward(&self, inputs: &Vec<f64>, y_true: &Vec<f64>) -> Vec<Vec<f64>> {
-            let mut outputs = inputs.clone();
-            let mut outputs_list = Vec::new();
-            outputs_list.push(outputs.clone());
-            for layer in &self.layers {
-                outputs = layer.forward(&outputs);
-                outputs_list.push(outputs.clone());
-            }
-            let mut gradients = Vec::new();
-            let mut next_grad = self.loss.backward(&outputs, &y_true);
-            for (layer, outputs) in self.layers.iter().rev().zip(outputs_list.iter().rev()) {
-                let grad = layer.activation.backward(&outputs, &next_grad, &self.loss);
-                next_grad = &layer.weights * &grad;
-                gradients.push(grad);
-            }
-            gradients.reverse();
-            gradients
-        }
-        
 
         pub fn classify(&self, outputs: &Vec<f64>) -> Vec<f64> {
             outputs.iter().map(|x| if *x > 0.5 { 1.0 } else { 0.0 }).collect()
@@ -324,6 +341,7 @@ mod tests {
             },
             biases: vec![0.0, 0.0],
             activation: Activation::None,
+            activationdata: vec![0.0, 0.0],
         };
 
         let inputs = vec![1.0, 2.0];
@@ -347,6 +365,7 @@ mod tests {
             },
             biases: vec![0.0, 0.0],
             activation: Activation::None,
+            activationdata: vec![0.0, 0.0],
         };
 
         let inputs = vec![1.0, 2.0];

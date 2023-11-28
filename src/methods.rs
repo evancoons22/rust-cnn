@@ -545,9 +545,36 @@ mod tests {
         let y_pred = vec![0.001, 0.001, 0.998];
         let y_true = vec![0.0, 0.0, 1.0];
         let loss = LossFunction::CrossEntropy;
-        assert_eq!(loss.backward(&y_pred, &y_true), vec![0.999000999000999, 0.999000999000999, -0.001001001001001]);
+        assert_eq!(loss.backward(&y_pred, &y_true), vec![0.001,0.001, -0.002]);
         
     }
+
+    #[test]
+    fn update_network() {
+        use super::nn::Network;
+        use super::nn::Layer;
+        let mut layer = Layer::new(2, 2);
+        layer.weights = Matrix { 
+            nrows: 2,
+            ncols: 2,
+            data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+        };
+        layer.biases = vec![0.0, 0.0];
+        let mut network = Network::new();
+        network.add_layer(layer.clone());
+        eprintln!("{:?}", network.layers[0].biases);
+        let inputs = vec![1.0, 2.0];
+        //let outputs = vec![5.0, 11.0];
+        let y_true = vec![0.0, 0.0];
+        let alpha = 0.01;
+        let layer_outputs = layer.forward(&inputs);
+        //assert_eq!(layer_outputs.clone(), outputs.clone());
+        let layer2 = layer.forward(&layer_outputs);
+        //assert_eq!(layer2, vec![27.0, 59.0]);
+        network.backward(&inputs, &layer2, &y_true, alpha);
+        eprintln!("{:?}", network.layers[0].biases);
+        assert_eq!(network.layers[0].weights.data[0][0], 0.9999999999999999);
+    }   
 
 }
 

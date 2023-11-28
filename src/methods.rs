@@ -87,6 +87,52 @@ pub mod linalg {
         }
     }
 
+    // implement subtract elementwise for matrices and vectors
+    use std::ops::{Sub, Add};
+    impl Sub<Matrix> for Matrix {
+        type Output = Self;
+        fn sub(self, rhs: Self) -> Self {
+            assert_eq!(self.nrows(), rhs.nrows());
+            assert_eq!(self.ncols(), rhs.ncols());
+            let mut result = Matrix::new(self.nrows(), self.ncols());
+            for i in 0..self.nrows() {
+                for j in 0..self.ncols() {
+                    result.data[i][j] = self.data[i][j] - rhs.data[i][j];
+                }
+            }
+            result
+        }
+    }
+
+    impl Add<Matrix> for Matrix {
+        type Output = Self;
+        fn add(self, rhs: Self) -> Self {
+            assert_eq!(self.nrows(), rhs.nrows());
+            assert_eq!(self.ncols(), rhs.ncols());
+            let mut result = Matrix::new(self.nrows(), self.ncols());
+            for i in 0..self.nrows() {
+                for j in 0..self.ncols() {
+                    result.data[i][j] = self.data[i][j] + rhs.data[i][j];
+                }
+            }
+            result
+        }
+    }
+
+    impl Mul<Matrix> for f64 {
+        type Output = Matrix;
+        fn mul(self, rhs: Matrix) -> Matrix {
+            let mut result = Matrix::new(rhs.nrows(), rhs.ncols());
+            for i in 0..rhs.nrows() {
+                for j in 0..rhs.ncols() {
+                    result.data[i][j] = self * rhs.data[i][j];
+                }
+            }
+            result
+        }
+    }
+
+
     pub fn dot_product(vec1: &[f64], vec2: &[f64]) -> f64 {
         if vec1.len() != vec2.len() {
             panic!("Vectors must be of equal length");
@@ -132,6 +178,7 @@ pub mod nn {
     use crate::activation::activations::Activation;
     use crate::activation::activations::ActivationFunction;
     use super::loss::*;
+    use super::linalg::subtract;
 
     #[derive(Debug, PartialEq)]
     pub struct Layer {
@@ -173,22 +220,22 @@ pub mod nn {
             }
         }
 
-        pub fn weight_grad_backwards(&self, inputs: &Vec<f64>, a: &Vec<f64>, agradprev: &Vec<f64>) -> Matrix {
+        pub fn weight_grad_backwards(&self, inputs: &Vec<f64>, a: &Vec<f64>, agradnext: &Vec<f64>) -> Matrix {
             let mut result = Matrix::new(self.output_size, self.input_size);
             let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
             for j in 0..self.output_size {
                 for k in 0..self.input_size {
-                    result.data[k][j] = actgrad[j] * a[k] * agradprev[j];
+                    result.data[k][j] = actgrad[j] * a[k] * agradnext[j];
                 }
             }
             result
         }
 
-        pub fn bias_grad_backwards(&self, inputs: &Vec<f64>, agradprev: &Vec<f64>) -> Vec<f64> {
+        pub fn bias_grad_backwards(&self, inputs: &Vec<f64>, agradnext: &Vec<f64>) -> Vec<f64> {
             let mut result = vec![0.0; self.output_size];
             let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
             for j in 0..self.output_size {
-                result[j] = actgrad[j] * agradprev[j];
+                result[j] = actgrad[j] * agradnext[j];
             }
             result
         }
@@ -235,6 +282,28 @@ pub mod nn {
 
         pub fn classify(&self, outputs: &Vec<f64>) -> Vec<f64> {
             outputs.iter().map(|x| if *x > 0.5 { 1.0 } else { 0.0 }).collect()
+        }
+
+        pub fn backward(&mut self, inputs: &Vec<f64>, outputs: &Vec<f64>, y_true: &Vec<f64>, alpha: f64) {
+            let mut prevactgrad = self.loss.backward(&outputs, &y_true);
+            let mut prevweights = self.layers.last().unwrap().weights.clone();
+            let mut allweightupdates: Vec<Matrix> = Vec::new();
+            let mut allbiasupdates: Vec<Vec<f64>> = Vec::new();
+            for layer in self.layers.iter().rev() {
+                let weightgrad = layer.weight_grad_backwards(&inputs, &layer.activationdata, &prevactgrad);
+                allweightupdates.push(weightgrad);
+                let biasgrad = layer.bias_grad_backwards(&inputs, &prevactgrad);
+                allbiasupdates.push(biasgrad);
+                let actgrad = layer.activation_grad_backward(&inputs, prevweights, &prevactgrad);
+                prevweights = layer.weights.clone();
+                prevactgrad = actgrad;
+
+            }
+            allweightupdates.reverse();
+            for (i, layer) in self.layers.iter_mut().enumerate() {
+                layer.weights = layer.weights.clone() - alpha * allweightupdates[i].clone();
+                layer.biases = subtract(&layer.biases.clone(), &allbiasupdates[i].clone());
+            }
         }
 
     }
@@ -331,7 +400,7 @@ mod tests {
     #[test]
     fn test_layer_forward() { 
         use crate::activation::activations::Activation;
-        let layer = Layer { 
+        let mut layer = Layer { 
             input_size: 2,
             output_size: 2,
             weights: Matrix { 
@@ -369,7 +438,7 @@ mod tests {
         };
 
         let inputs = vec![1.0, 2.0];
-        let network = Network { layers: vec![layer.clone(), layer.clone()], loss: super::loss::LossFunction::MSE };
+        let mut network = Network { layers: vec![layer.clone(), layer.clone()], loss: super::loss::LossFunction::MSE };
         assert_eq!(network.forward(&inputs), vec![27.0, 59.0]);
 
         }
@@ -447,6 +516,36 @@ mod tests {
         let y_true = vec![0.0, 0.0, 1.0];
         let loss = LossFunction::CrossEntropy;
         assert_eq!(loss.getloss(&y_pred, &y_true), 0.0020020026706730793);
+        
+    }
+    #[test]
+    fn test_elementwise_matrix_add() {
+        let a = Matrix { 
+            nrows: 2,
+            ncols: 2,
+            data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+        };
+        let b = Matrix { 
+            nrows: 2,
+            ncols: 2,
+            data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+        };
+        let c = Matrix { 
+            nrows: 2,
+            ncols: 2,
+            data: vec![vec![2.0, 4.0], vec![6.0, 8.0]],
+        };
+        assert_eq!(a + b, c);
+    }
+
+    #[test]
+    fn test_loss_cross_entropy_backward() {
+        use super::loss::LossFunction;
+        use super::loss::Loss;
+        let y_pred = vec![0.001, 0.001, 0.998];
+        let y_true = vec![0.0, 0.0, 1.0];
+        let loss = LossFunction::CrossEntropy;
+        assert_eq!(loss.backward(&y_pred, &y_true), vec![0.999000999000999, 0.999000999000999, -0.001001001001001]);
         
     }
 

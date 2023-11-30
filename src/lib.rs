@@ -9,7 +9,6 @@ use crate::activation::activations::Activation;
 pub fn run_network(inputs: Vec<f64>) -> Vec<f64> {
     let mut network = Network::new();
 
-
     let layer1 = Layer {
         input_size: 2,
         output_size: 3,
@@ -24,10 +23,9 @@ pub fn run_network(inputs: Vec<f64>) -> Vec<f64> {
         output_size: 2,
         weights: Matrix::rand(2, 3),
         biases: vec![0.0; 2],
-        activation: Activation::Tanh,
+        activation: Activation::Sigmoid,
         activationdata: vec![0.0; 2],
     };
-
 
     network.add_layer(layer1);
     network.add_layer(layer2);

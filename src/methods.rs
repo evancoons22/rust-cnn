@@ -209,13 +209,13 @@ pub mod nn {
             self.activationdata = self.activation.forward(&add(&(&self.weights * &inputs), &self.biases));
             self.activationdata.clone()
         }
-        pub fn new(input_size: usize, output_size: usize) -> Self {
+        pub fn new(input_size: usize, output_size: usize, activation: Activation) -> Self {
             Layer {
                 input_size,
                 output_size,
                 weights: Matrix::rand(output_size, input_size),
                 biases: vec![0.0; output_size],
-                activation: Activation::None,
+                activation,
                 activationdata: vec![0.0; output_size],
             }
         }
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn layer_forward_new() { 
-        let mut layer = Layer::new(2, 2);
+        let mut layer = Layer::new(2, 2, crate::activation::activations::Activation::None);
         layer.weights = Matrix { 
             nrows: 2,
             ncols: 2,
@@ -467,7 +467,7 @@ mod tests {
 
     #[test]
     fn activation_test() { 
-        let mut layer = Layer::new(2, 2);
+        let mut layer = Layer::new(2, 2, crate::activation::activations::Activation::Sigmoid);
         layer.weights = Matrix { 
             nrows: 2,
             ncols: 2,

@@ -21,7 +21,7 @@ use crate::activation::activations::Activation;
 use crate::methods::loss::*;
 
 
-fn main() -> {
+fn main() {
     
     // define inputs as a vector. ex:
     let inputs: Vec<f64> = vec![1.0, 2.0];

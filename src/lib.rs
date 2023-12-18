@@ -16,6 +16,7 @@ pub fn run_network(inputs: Vec<f64>) -> Vec<f64> {
         biases: vec![0.0; 3],
         activation: Activation::None,
         activationdata: vec![0.0; 3],
+        activationgrad: vec![0.0; 3],
     };
 
     let layer2 = Layer {
@@ -25,6 +26,7 @@ pub fn run_network(inputs: Vec<f64>) -> Vec<f64> {
         biases: vec![0.0; 2],
         activation: Activation::Sigmoid,
         activationdata: vec![0.0; 2],
+        activationgrad: vec![0.0; 2],
     };
 
     network.add_layer(layer1);

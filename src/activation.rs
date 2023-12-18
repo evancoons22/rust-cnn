@@ -25,6 +25,8 @@ pub mod activations {
             }
         }
 
+        // takes in the output of the activation and loss function, returns value of the derivative
+        // of loss function
         fn backward(&self, x: &[f64], l: &LossFunction) -> Vec<f64> {
             match self {
                 Activation::Relu => x.iter().map(|&x| if x > 0.0 { 1.0 } else { 0.0 }).collect(),

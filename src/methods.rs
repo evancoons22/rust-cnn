@@ -36,6 +36,8 @@ pub mod linalg {
             }
         }
 
+        //implement copy trait
+
     }
 
 
@@ -178,7 +180,7 @@ pub mod nn {
     use crate::activation::activations::Activation;
     use crate::activation::activations::ActivationFunction;
     use super::loss::*;
-    use super::linalg::subtract;
+    //use super::linalg::subtract;
 
     #[derive(Debug, PartialEq)]
     pub struct Layer {
@@ -188,6 +190,7 @@ pub mod nn {
         pub biases: Vec<f64>,
         pub activation: Activation,
         pub activationdata: Vec<f64>,
+        pub activationgrad: Vec<f64>,
     }
 
     impl Clone for Layer {
@@ -199,6 +202,7 @@ pub mod nn {
                 biases: self.biases.clone(),
                 activation: self.activation.clone(),
                 activationdata: self.activationdata.clone(),
+                activationgrad: self.activationgrad.clone(),
             }
         }
     }
@@ -217,6 +221,7 @@ pub mod nn {
                 biases: vec![0.0; output_size],
                 activation,
                 activationdata: vec![0.0; output_size],
+                activationgrad: vec![0.0; output_size],
             }
         }
 
@@ -241,7 +246,7 @@ pub mod nn {
         }
 
 
-        pub fn activation_grad_backward(&self, inputs: &Vec<f64>, weights: Matrix, agradnext: &Vec<f64>) -> Vec<f64> {
+        pub fn activation_grad(&self, inputs: &Vec<f64>, weights: Matrix, agradnext: &Vec<f64>) -> Vec<f64> {
             use super::linalg::*;
             let mut result = vec![0.0; self.output_size];
             let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
@@ -285,26 +290,30 @@ pub mod nn {
         }
 
         pub fn backward(&mut self, inputs: &Vec<f64>, outputs: &Vec<f64>, y_true: &Vec<f64>, alpha: f64) {
-            let mut prevactgrad = self.loss.backward(&outputs, &y_true);
-            let mut prevweights = self.layers.last().unwrap().weights.clone();
-            let mut allweightupdates: Vec<Matrix> = Vec::new();
-            let mut allbiasupdates: Vec<Vec<f64>> = Vec::new();
-            for layer in self.layers.iter().rev() {
-                let weightgrad = layer.weight_grad_backwards(&inputs, &layer.activationdata, &prevactgrad);
-                allweightupdates.push(weightgrad);
-                let biasgrad = layer.bias_grad_backwards(&inputs, &prevactgrad);
-                allbiasupdates.push(biasgrad);
-                let actgrad = layer.activation_grad_backward(&inputs, prevweights, &prevactgrad);
-                prevweights = layer.weights.clone();
-                prevactgrad = actgrad;
+            // the last layer is special... calculate the gradients for the last activations
+            let mut activationgrad: Vec<f64> = vec![];
+            for o in outputs {
+                activationgrad.append(&mut self.loss.backward(&vec![*o], &y_true));
+            }
+
+            // set the activation of the last layer equal to activationgrad
+            let index: usize = self.layers.len() - 1;
+            self.layers[index].activationgrad = activationgrad.clone();
+
+            // go through the layers backwards
+            for i in self.layers.len()..0 {
+                let layer = &self.layers[i];
+                let agradnext = activationgrad.clone();
+                let weightgrad = layer.weight_grad_backwards(&inputs, &layer.activationdata, &agradnext);
+                //let biasgrad = layer.bias_grad_backwards(&inputs, &agradnext);
+                //update the activation gradient that is a trait of the layer
+                self.layers[i].activationgrad = layer.activation_grad(&inputs, layer.weights.clone(), &agradnext);
+                // update weights and biases
+                self.layers[i].weights = self.layers[i].weights.clone() - (alpha * weightgrad);
+                //self.layers[i].biases = subtract(&self.layers[i].biases, &biasgrad);
+            }
 
             }
-            allweightupdates.reverse();
-            for (i, layer) in self.layers.iter_mut().enumerate() {
-                layer.weights = layer.weights.clone() - alpha * allweightupdates[i].clone();
-                layer.biases = subtract(&layer.biases.clone(), &allbiasupdates[i].clone());
-            }
-        }
 
     }
 }
@@ -411,6 +420,7 @@ mod tests {
             biases: vec![0.0, 0.0],
             activation: Activation::None,
             activationdata: vec![0.0, 0.0],
+            activationgrad: vec![0.0, 0.0],
         };
 
         let inputs = vec![1.0, 2.0];
@@ -435,6 +445,7 @@ mod tests {
             biases: vec![0.0, 0.0],
             activation: Activation::None,
             activationdata: vec![0.0, 0.0],
+            activationgrad: vec![0.0, 0.0],
         };
 
         let inputs = vec![1.0, 2.0];
@@ -553,7 +564,9 @@ mod tests {
     fn update_network() {
         use super::nn::Network;
         use super::nn::Layer;
-        let mut layer = Layer::new(2, 2);
+        use crate::activation::activations::Activation;
+
+        let mut layer = Layer::new(2, 2, Activation::None);
         layer.weights = Matrix { 
             nrows: 2,
             ncols: 2,
@@ -562,7 +575,7 @@ mod tests {
         layer.biases = vec![0.0, 0.0];
         let mut network = Network::new();
         network.add_layer(layer.clone());
-        eprintln!("{:?}", network.layers[0].biases);
+        //eprintln!("{:?}", network.layers[0].biases);
         let inputs = vec![1.0, 2.0];
         //let outputs = vec![5.0, 11.0];
         let y_true = vec![0.0, 0.0];
@@ -575,6 +588,51 @@ mod tests {
         eprintln!("{:?}", network.layers[0].biases);
         assert_eq!(network.layers[0].weights.data[0][0], 0.9999999999999999);
     }   
+
+    #[test]
+    fn network_test() {
+        use super::nn::Network;
+        use super::nn::Layer;
+        use crate::activation::activations::Activation;
+
+        let mut layer = Layer::new(2, 2, Activation::Relu);
+        layer.weights = Matrix { 
+            nrows: 2,
+            ncols: 2,
+            data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+        };
+        layer.biases = vec![0.0, 0.0];
+
+        let mut layer2 = Layer::new(2, 2, Activation::Relu);
+        layer2.weights = Matrix { 
+            nrows: 2,
+            ncols: 2,
+            data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+        };
+
+        let mut network = Network::new();
+
+        network.add_layer(layer.clone());
+        network.add_layer(layer2.clone());
+
+        //eprintln!("{:?}", network.layers[0].biases);
+        let inputs = vec![1.0, 1.0];
+        //let outputs = vec![5.0, 11.0];
+        
+        network.forward(&inputs);
+
+        network.backward(&inputs, &layer2.activationdata, &vec![0.0, 0.0], 0.01);
+
+        //assert_eq!(layer_outputs.clone(), outputs.clone());
+        //assert_eq!(layer2, vec![27.0, 59.0]);
+        eprintln!("{:?}", network.layers[0].biases);
+        eprintln!("Activation data layer 1: {:?}", network.layers[0].activationdata);
+        eprintln!("Activation data layer 2: {:?}", network.layers[1].activationdata);
+        eprintln!("Activation grad of layer 2: {:?}", network.layers[1].activationgrad);
+
+        assert_eq!(network.layers[0].weights.data[0][0], 1.1);
+
+    }
 
 }
 

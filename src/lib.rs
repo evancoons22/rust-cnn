@@ -1,9 +1,11 @@
-pub mod methods;
+pub mod nn;
 pub mod activation;
+pub mod linalg;
+pub mod loss;
 
-use crate::methods::nn::{Network, Layer};
-use crate::methods::linalg::Matrix;
-use crate::activation::activations::Activation;
+use crate::nn::{Network, Layer};
+use crate::linalg::Matrix;
+use crate::activation::Activation;
 
 
 pub fn run_network(inputs: Vec<f64>) -> Vec<f64> {

@@ -53,6 +53,10 @@ fn main() {
     //define loss
     network.loss = LossFunction::CrossEntropy;
 
+    // train network
+    network.train()
+
+    // pass network forward
     let outputs = network.forward(&inputs);
 
     // can get loss 
@@ -61,7 +65,7 @@ fn main() {
     println!("{:?}", loss.getloss(&outputs, &y_true));
     
     //print outputs
-    outputs
+    println!(outputs);
 }
 ```
 

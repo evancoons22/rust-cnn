@@ -109,23 +109,27 @@ impl Network {
         outputs.iter().map(|x| if *x > 0.5 { 1.0 } else { 0.0 }).collect()
     }
 
-    pub fn backward(&mut self, inputs: &Vec<f64>, outputs: &Vec<f64>, y_true: &Vec<f64>, alpha: f64) {
+    pub fn backward(&mut self, inputs: &Vec<f64>, y_true: &Vec<f64>, alpha: f64) {
         // the last layer is special... calculate the gradients for the last activations
         let mut activationgrad: Vec<f64> = vec![];
+        let index: usize = self.layers.len() - 1;
+
+        let outputs = self.layers[index].activationdata.clone();
+
         for o in outputs {
-            activationgrad.append(&mut self.loss.backward(&vec![*o], &y_true));
+            activationgrad.append(&mut self.loss.backward(&vec![o], &y_true));
         }
 
         // set the activation of the last layer equal to activationgrad
-        let index: usize = self.layers.len() - 1;
         self.layers[index].activationgrad = activationgrad.clone();
 
         // go through the layers backwards
-        for i in self.layers.len()..0 {
+
+        // why isn't this loop reached?
+        for i in (0..self.layers.len()).rev() {
             let layer = &self.layers[i];
             let agradnext = activationgrad.clone();
             let weightgrad = layer.weight_grad_backwards(&inputs, &layer.activationdata, &agradnext);
-            //let biasgrad = layer.bias_grad_backwards(&inputs, &agradnext);
             //update the activation gradient that is a trait of the layer
             self.layers[i].activationgrad = layer.activation_grad(&inputs, layer.weights.clone(), &agradnext);
             // update weights and biases
@@ -231,9 +235,9 @@ mod tests {
         let alpha = 0.01;
         let layer_outputs = layer.forward(&inputs);
         //assert_eq!(layer_outputs.clone(), outputs.clone());
-        let layer2 = layer.forward(&layer_outputs);
+        let _layer2 = layer.forward(&layer_outputs);
         //assert_eq!(layer2, vec![27.0, 59.0]);
-        network.backward(&inputs, &layer2, &y_true, alpha);
+        network.backward(&inputs, &y_true, alpha);
         eprintln!("{:?}", network.layers[0].biases);
         assert_eq!(network.layers[0].weights.data[0][0], 0.9999999999999999);
     }   
@@ -270,14 +274,24 @@ mod tests {
         
         network.forward(&inputs);
 
-        network.backward(&inputs, &layer2.activationdata, &vec![0.0, 0.0], 0.01);
+        //network.backward(&inputs, &layer2.activationdata, &vec![0.0, 0.0], 0.01);
+        eprintln!("network weights before: {:?}", network.layers[0].weights);
+
+        for _ in 0..10 {
+            eprintln!("{:?}", network.forward(&inputs));
+            network.backward(&inputs, &vec![0.0, 0.0], 0.01);
+            eprintln!("network weights: {:?}", network.layers[0].weights);
+        }
+
+        network.backward(&inputs, &vec![0.0, 0.0], 1.0);
+
 
         //assert_eq!(layer_outputs.clone(), outputs.clone());
         //assert_eq!(layer2, vec![27.0, 59.0]);
-        eprintln!("{:?}", network.layers[0].biases);
-        eprintln!("Activation data layer 1: {:?}", network.layers[0].activationdata);
-        eprintln!("Activation data layer 2: {:?}", network.layers[1].activationdata);
-        eprintln!("Activation grad of layer 2: {:?}", network.layers[1].activationgrad);
+        //eprintln!("Network biases: {:?}", network.layers[0].biases);
+        //eprintln!("Activation data layer 1: {:?}", network.layers[0].activationdata);
+        //eprintln!("Activation data layer 2: {:?}", network.layers[1].activationdata);
+        //eprintln!("Activation grad applied to layer 2: {:?}", network.layers[1].activationgrad);
 
         assert_eq!(network.layers[0].weights.data[0][0], 1.1);
 

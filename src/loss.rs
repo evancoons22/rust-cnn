@@ -20,51 +20,62 @@ impl Clone for LossFunction {
     }
 }
 
-impl Loss for LossFunction{
+impl Loss for LossFunction {
     fn getloss(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> f64 {
         match &self {
-            LossFunction::MSE => (y_pred.len() as f64) * dot_product(&subtract(y_pred, y_true), &subtract(y_pred, y_true)),
-            LossFunction::CrossEntropy => y_pred.iter().zip(y_true.iter()).map(|(x, y)| -1.0 * (y * x.ln())).sum::<f64>(),
+            LossFunction::MSE => {
+                (y_pred.len() as f64)
+                    * dot_product(&subtract(y_pred, y_true), &subtract(y_pred, y_true))
+            }
+            LossFunction::CrossEntropy => y_pred
+                .iter()
+                .zip(y_true.iter())
+                .map(|(x, y)| -1.0 * (y * x.ln()))
+                .sum::<f64>(),
         }
     }
 
     fn backward(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> Vec<f64> {
         match self {
-            LossFunction::MSE => y_pred.iter().zip(y_true.iter()).map(|(x, y)| 2.0 * (x - y)).collect::<Vec<f64>>(),
-            LossFunction::CrossEntropy => y_pred.iter().zip(y_true.iter()).map(|(x, y)| x - y).collect::<Vec<f64>>(),
+            LossFunction::MSE => y_pred
+                .iter()
+                .zip(y_true.iter())
+                .map(|(x, y)| 2.0 * (x - y))
+                .collect::<Vec<f64>>(),
+            LossFunction::CrossEntropy => y_pred
+                .iter()
+                .zip(y_true.iter())
+                .map(|(x, y)| x - y)
+                .collect::<Vec<f64>>(),
         }
-
     }
 }
-
 
 #[cfg(test)]
 #[test]
 fn test_loss_cross_entropy_backward() {
-    use crate::loss::LossFunction;
     use crate::loss::Loss;
+    use crate::loss::LossFunction;
     let y_pred = vec![0.001, 0.001, 0.998];
     let y_true = vec![0.0, 0.0, 1.0];
     let loss = LossFunction::CrossEntropy;
-    assert_eq!(loss.backward(&y_pred, &y_true), vec![0.001,0.001, -0.002]);
-    
+    assert_eq!(loss.backward(&y_pred, &y_true), vec![0.001, 0.001, -0.002]);
 }
 
 #[test]
 fn test_loss_cross_entropy() {
-    use crate::loss::LossFunction;
     use crate::loss::Loss;
+    use crate::loss::LossFunction;
     let y_pred = vec![0.001, 0.001, 0.998];
     let y_true = vec![0.0, 0.0, 1.0];
     let loss = LossFunction::CrossEntropy;
     assert_eq!(loss.getloss(&y_pred, &y_true), 0.0020020026706730793);
-    
 }
 
 #[test]
 fn test_loss_mse() {
-    use crate::loss::LossFunction;
     use crate::loss::Loss;
+    use crate::loss::LossFunction;
     let y_pred = vec![0.0, 0.0, 1.0];
     let y_true = vec![0.0, 0.0, 1.0];
     let loss = LossFunction::MSE;
@@ -73,8 +84,8 @@ fn test_loss_mse() {
 
 #[test]
 fn test_loss_mse_backward() {
-    use crate::loss::LossFunction;
     use crate::loss::Loss;
+    use crate::loss::LossFunction;
     let y_pred = vec![0.0, 0.0, 1.0];
     let y_true = vec![0.0, 0.0, 1.0];
     let loss = LossFunction::MSE;

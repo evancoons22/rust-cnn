@@ -256,15 +256,15 @@ mod tests {
         use crate::activation::Activation;
         use crate::loss::*;
 
-        let mut layer = Layer::new(2, 4, Activation::Relu);
-        layer.biases = vec![0.0, 0.0, 0.0, 0.0];
+        let mut layer1 = Layer::new(2, 4, Activation::Relu);
+        layer1.biases = vec![0.0, 0.0, 0.0, 0.0];
 
         let mut layer2 = Layer::new(4, 2, Activation::Relu);
         layer2.biases = vec![0.0, 0.0];
 
         let mut network = Network::new();
 
-        network.add_layer(layer.clone());
+        network.add_layer(layer1.clone());
         network.add_layer(layer2.clone());
 
         let inputs = vec![1.0, 1.0];

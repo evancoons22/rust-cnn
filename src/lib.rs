@@ -2,6 +2,7 @@ pub mod nn;
 pub mod activation;
 pub mod linalg;
 pub mod loss;
+pub mod dataloader;
 
 use crate::nn::{Network, Layer};
 use crate::linalg::Matrix;

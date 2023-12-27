@@ -257,19 +257,9 @@ mod tests {
         use crate::loss::*;
 
         let mut layer = Layer::new(2, 4, Activation::Relu);
-        //layer.weights = Matrix { 
-            //nrows: 2,
-            //ncols: 2,
-            //data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
-        //};
         layer.biases = vec![0.0, 0.0, 0.0, 0.0];
 
         let mut layer2 = Layer::new(4, 2, Activation::Relu);
-        //layer2.weights = Matrix { 
-            //nrows: 2,
-            //ncols: 2,
-            //data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
-        //};
         layer2.biases = vec![0.0, 0.0];
 
         let mut network = Network::new();
@@ -283,7 +273,7 @@ mod tests {
         eprintln!("initial network weights 0: {:?}", network.layers[0].weights);
         eprintln!("initial network weights 1: {:?}\n", network.layers[1].weights);
 
-        eprintln!("initial network outputs: {:?}", network.forward(&inputs));
+        let initial = network.forward(&inputs);
         network.forward(&inputs);
 
         for i in 0..100 {
@@ -295,7 +285,7 @@ mod tests {
             //eprintln!("network weights 1 updated: {:?}", network.layers[1].weights);
         }
 
-        eprintln!("final network outputs: {:?}", network.forward(&inputs));
+        eprintln!("initial network outputs: {:?}, \nfinal network outputs: {:?}", initial, network.forward(&inputs));
 
         assert_eq!(network.layers[0].weights.data[0][0], 1.1);
 

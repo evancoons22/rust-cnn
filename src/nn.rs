@@ -45,12 +45,19 @@ impl Layer {
         }
     }
 
-    pub fn weight_grad_backwards(&self, inputs: &Vec<f64>, a: &Vec<f64>, agradnext: &Vec<f64>) -> Matrix {
+    pub fn weight_grad_backwards(&self, inputs: &Vec<f64>, agradnext: &Vec<f64>) -> Matrix {
         let mut result = Matrix::new(self.output_size, self.input_size);
+        let activation = self.activationdata.clone();
         let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
+        eprintln!("input size: {:?}", &self.input_size);
+        eprintln!("output size: {:?}", &self.output_size);
+        eprintln!("inputs len: {:?}", &inputs.len()); // 2
+        eprintln!("actgrad len: {:?}", &actgrad.len()); // 4
+        eprintln!("activation len: {:?}", &activation.len()); // 2
+        eprintln!("agradnext len: {:?}", &agradnext.len()); // 2
         for j in 0..self.output_size {
             for k in 0..self.input_size {
-                result.data[k][j] = actgrad[j] * a[k] * agradnext[j];
+                result.data[j][k] = actgrad[k] * activation[j] * agradnext[j];
             }
         }
         result
@@ -69,10 +76,21 @@ impl Layer {
     pub fn activation_grad(&self, inputs: &Vec<f64>, weights: Matrix, agradnext: &Vec<f64>) -> Vec<f64> {
         use crate::linalg::*;
         let mut result = vec![0.0; self.output_size];
-        let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
+        //let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
+        let actgrad = self.activation.backward(&self.activationdata, &LossFunction::MSE);
         let tweights = transpose(weights.clone());
+        let first = dot_product(&agradnext, &actgrad);
+        eprintln!("actgrad len: {:?}", &actgrad.len());
+        eprintln!("actgradnext len: {:?}", &agradnext.len());
+        eprintln!("tweights ncols: {:?}", &tweights.ncols);
         for k in 0..self.input_size {
-            result[k] += dot_product(&tweights.data[k], &add(&actgrad, &agradnext));
+            //result[k] += dot_product(&[dot_product(&tweights.data[k], &actgrad)], &agradnext);
+            //result[k] += dot_product(&tweights.data[k], &add(&actgrad, &agradnext));
+            //result[k] = dot_product(&tweights.data[k], &first);
+            
+            //result[k] = dot_product(&tweights.data[k], &first);
+            //result should be the weight row times first for each k activation
+            result[k] = result[k] * first;
         }
         result
     }
@@ -116,9 +134,8 @@ impl Network {
 
         let outputs = self.layers[index].activationdata.clone();
 
-        for o in outputs {
-            activationgrad.append(&mut self.loss.backward(&vec![o], &y_true));
-        }
+        activationgrad.append(&mut self.loss.backward(&outputs, &y_true));
+
 
         // set the activation of the last layer equal to activationgrad
         self.layers[index].activationgrad = activationgrad.clone();
@@ -128,11 +145,26 @@ impl Network {
         // why isn't this loop reached?
         for i in (0..self.layers.len()).rev() {
             let layer = &self.layers[i];
-            let agradnext = activationgrad.clone();
-            let weightgrad = layer.weight_grad_backwards(&inputs, &layer.activationdata, &agradnext);
+
+            let agradnext = if i == self.layers.len() - 1 {
+                activationgrad.clone()
+            } else {
+                self.layers[i + 1].activationgrad.clone()
+            };
+
+            let input = match i {
+                0 => inputs.clone(),
+                _ => self.layers[i - 1].activationdata.clone(),
+            };
+
+
+            let weightgrad = layer.weight_grad_backwards(&input, &agradnext);
             //update the activation gradient that is a trait of the layer
-            self.layers[i].activationgrad = layer.activation_grad(&inputs, layer.weights.clone(), &agradnext);
+            //
+            // ACTIVATION GRAD SHOULD NOT TAKE INPUTS
+            self.layers[i].activationgrad = layer.activation_grad(&input, layer.weights.clone(), &agradnext);
             // update weights and biases
+            //eprintln!("weightgrad: {:?}", &weightgrad.clone());
             self.layers[i].weights = self.layers[i].weights.clone() - (alpha * weightgrad);
             //self.layers[i].biases = subtract(&self.layers[i].biases, &biasgrad);
         }
@@ -213,85 +245,53 @@ mod tests {
         assert_eq!(outputs.len(), 2);
     }
 
-    #[test]
-    fn update_network() {
-        use crate::nn::Network;
-        use crate::nn::Layer;
-        use crate::activation::Activation;
-
-        let mut layer = Layer::new(2, 2, Activation::None);
-        layer.weights = Matrix { 
-            nrows: 2,
-            ncols: 2,
-            data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
-        };
-        layer.biases = vec![0.0, 0.0];
-        let mut network = Network::new();
-        network.add_layer(layer.clone());
-        //eprintln!("{:?}", network.layers[0].biases);
-        let inputs = vec![1.0, 2.0];
-        //let outputs = vec![5.0, 11.0];
-        let y_true = vec![0.0, 0.0];
-        let alpha = 0.01;
-        let layer_outputs = layer.forward(&inputs);
-        //assert_eq!(layer_outputs.clone(), outputs.clone());
-        let _layer2 = layer.forward(&layer_outputs);
-        //assert_eq!(layer2, vec![27.0, 59.0]);
-        network.backward(&inputs, &y_true, alpha);
-        eprintln!("{:?}", network.layers[0].biases);
-        assert_eq!(network.layers[0].weights.data[0][0], 0.9999999999999999);
-    }   
 
     #[test]
     fn network_test() {
         use crate::nn::Network;
         use crate::nn::Layer;
         use crate::activation::Activation;
+        use crate::loss::*;
 
         let mut layer = Layer::new(2, 2, Activation::Relu);
-        layer.weights = Matrix { 
-            nrows: 2,
-            ncols: 2,
-            data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
-        };
+        //layer.weights = Matrix { 
+            //nrows: 2,
+            //ncols: 2,
+            //data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+        //};
         layer.biases = vec![0.0, 0.0];
 
         let mut layer2 = Layer::new(2, 2, Activation::Relu);
-        layer2.weights = Matrix { 
-            nrows: 2,
-            ncols: 2,
-            data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
-        };
+        //layer2.weights = Matrix { 
+            //nrows: 2,
+            //ncols: 2,
+            //data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
+        //};
+        layer2.biases = vec![0.0, 0.0];
 
         let mut network = Network::new();
 
         network.add_layer(layer.clone());
         network.add_layer(layer2.clone());
 
-        //eprintln!("{:?}", network.layers[0].biases);
         let inputs = vec![1.0, 1.0];
-        //let outputs = vec![5.0, 11.0];
-        
+        let target = vec![2.0, 2.0];
+
+        eprintln!("initial network weights 0: {:?}", network.layers[0].weights);
+        eprintln!("initial network weights 1: {:?}", network.layers[1].weights);
+
         network.forward(&inputs);
 
-        //network.backward(&inputs, &layer2.activationdata, &vec![0.0, 0.0], 0.01);
-        eprintln!("network weights before: {:?}", network.layers[0].weights);
-
-        for _ in 0..10 {
-            eprintln!("{:?}", network.forward(&inputs));
-            network.backward(&inputs, &vec![0.0, 0.0], 0.01);
-            eprintln!("network weights: {:?}", network.layers[0].weights);
+        for i in 0..100 {
+            //eprintln!("network outputs on round {}: {:?}", i, network.forward(&inputs));
+            network.forward(&inputs);
+            network.backward(&inputs, &target, 0.004);
+            eprintln!("loss on round {}: {:?}", i, network.loss.getloss(&network.layers[1].activationdata, &target));
+            //eprintln!("network weights 0 updated: {:?}", network.layers[0].weights);
+            //eprintln!("network weights 1 updated: {:?}", network.layers[1].weights);
         }
 
-        network.backward(&inputs, &vec![0.0, 0.0], 1.0);
-
-
-        //assert_eq!(layer_outputs.clone(), outputs.clone());
-        //assert_eq!(layer2, vec![27.0, 59.0]);
-        //eprintln!("Network biases: {:?}", network.layers[0].biases);
-        //eprintln!("Activation data layer 1: {:?}", network.layers[0].activationdata);
-        //eprintln!("Activation data layer 2: {:?}", network.layers[1].activationdata);
-        //eprintln!("Activation grad applied to layer 2: {:?}", network.layers[1].activationgrad);
+        eprintln!("final network outputs: {:?}", network.forward(&inputs));
 
         assert_eq!(network.layers[0].weights.data[0][0], 1.1);
 

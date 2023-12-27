@@ -36,6 +36,9 @@ impl Loss for LossFunction {
     }
 
     fn backward(&self, y_pred: &Vec<f64>, y_true: &Vec<f64>) -> Vec<f64> {
+        if y_pred.len() != y_true.len() {
+            panic!("y_pred and y_true must be the same length");
+        }
         match self {
             LossFunction::MSE => y_pred
                 .iter()

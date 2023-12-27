@@ -49,12 +49,12 @@ impl Layer {
         let mut result = Matrix::new(self.output_size, self.input_size);
         let activation = self.activationdata.clone();
         let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
-        eprintln!("input size: {:?}", &self.input_size);
-        eprintln!("output size: {:?}", &self.output_size);
-        eprintln!("inputs len: {:?}", &inputs.len()); // 2
-        eprintln!("actgrad len: {:?}", &actgrad.len()); // 4
-        eprintln!("activation len: {:?}", &activation.len()); // 2
-        eprintln!("agradnext len: {:?}", &agradnext.len()); // 2
+        //eprintln!("input size: {:?}", &self.input_size);
+        //eprintln!("output size: {:?}", &self.output_size);
+        //eprintln!("inputs len: {:?}", &inputs.len()); // 2
+        //eprintln!("actgrad len: {:?}", &actgrad.len()); // 4
+        //eprintln!("activation len: {:?}", &activation.len()); // 2
+        //eprintln!("agradnext len: {:?}", &agradnext.len()); // 2
         for j in 0..self.output_size {
             for k in 0..self.input_size {
                 result.data[j][k] = actgrad[k] * activation[j] * agradnext[j];
@@ -75,22 +75,25 @@ impl Layer {
 
     pub fn activation_grad(&self, inputs: &Vec<f64>, weights: Matrix, agradnext: &Vec<f64>) -> Vec<f64> {
         use crate::linalg::*;
-        let mut result = vec![0.0; self.output_size];
+        let mut result = vec![0.0; self.input_size];
         //let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
         let actgrad = self.activation.backward(&self.activationdata, &LossFunction::MSE);
         let tweights = transpose(weights.clone());
         let first = dot_product(&agradnext, &actgrad);
-        eprintln!("actgrad len: {:?}", &actgrad.len());
-        eprintln!("actgradnext len: {:?}", &agradnext.len());
-        eprintln!("tweights ncols: {:?}", &tweights.ncols);
+        //eprintln!("actgrad len: {:?}", &actgrad.len());
+        //eprintln!("actgradnext len: {:?}", &agradnext.len());
+        //eprintln!("tweights ncols: {:?}", &tweights.ncols);
+        //eprintln!("length of result: {:?}", &result.len());
+
         for k in 0..self.input_size {
             //result[k] += dot_product(&[dot_product(&tweights.data[k], &actgrad)], &agradnext);
             //result[k] += dot_product(&tweights.data[k], &add(&actgrad, &agradnext));
             //result[k] = dot_product(&tweights.data[k], &first);
             
-            //result[k] = dot_product(&tweights.data[k], &first);
-            //result should be the weight row times first for each k activation
-            result[k] = result[k] * first;
+            //result[k] = tweights[k] * first;
+            //iterate over tweights[k] and multiply each by first, then sum
+            //
+            result[k] = tweights.data[k].iter().map(|&x| x * first).sum();
         }
         result
     }
@@ -253,15 +256,15 @@ mod tests {
         use crate::activation::Activation;
         use crate::loss::*;
 
-        let mut layer = Layer::new(2, 2, Activation::Relu);
+        let mut layer = Layer::new(2, 4, Activation::Relu);
         //layer.weights = Matrix { 
             //nrows: 2,
             //ncols: 2,
             //data: vec![vec![1.0, 2.0], vec![3.0, 4.0]],
         //};
-        layer.biases = vec![0.0, 0.0];
+        layer.biases = vec![0.0, 0.0, 0.0, 0.0];
 
-        let mut layer2 = Layer::new(2, 2, Activation::Relu);
+        let mut layer2 = Layer::new(4, 2, Activation::Relu);
         //layer2.weights = Matrix { 
             //nrows: 2,
             //ncols: 2,
@@ -278,8 +281,9 @@ mod tests {
         let target = vec![2.0, 2.0];
 
         eprintln!("initial network weights 0: {:?}", network.layers[0].weights);
-        eprintln!("initial network weights 1: {:?}", network.layers[1].weights);
+        eprintln!("initial network weights 1: {:?}\n", network.layers[1].weights);
 
+        eprintln!("initial network outputs: {:?}", network.forward(&inputs));
         network.forward(&inputs);
 
         for i in 0..100 {

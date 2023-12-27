@@ -1,4 +1,5 @@
 use std::ops::Mul;
+use std::ops::Index;
 
 #[derive(Debug, PartialEq)]
 pub struct Matrix {
@@ -37,6 +38,29 @@ impl Matrix {
     //implement copy trait
 
 }
+
+//implement indexing for matrix
+impl Index<usize> for Matrix {
+    type Output = Vec<f64>;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.data[index]
+    }
+}
+
+impl Mul<f64> for Matrix {
+    type Output = Self;
+    fn mul(self, rhs: f64) -> Self {
+        let mut result = Matrix::new(self.nrows(), self.ncols());
+        for i in 0..self.nrows() {
+            for j in 0..self.ncols() {
+                result.data[i][j] = self.data[i][j] * rhs;
+            }
+        }
+        result
+    }
+}
+
+
 
 
 impl Mul<Matrix> for Matrix {

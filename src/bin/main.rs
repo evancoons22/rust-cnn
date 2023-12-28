@@ -30,11 +30,7 @@ fn main() {
 
 
 
-    network.train(&dataloader, 0.006, 100, false);
-
-    //eprintln!("initial network output: {:?}\n, final network output: {:?}", initial, last);
-    eprintln!("initial loss: {:?}\n, final loss: {:?}", initial_loss, final_loss);
-    //eprintln!("true output: {:?}\n", dataloader.labels[0]);
+    network.train(&dataloader, 0.006, 100, true);
 
 }
 

@@ -1,6 +1,29 @@
+Instructions to compile to wasm
 1 - install `rustup target add wasm32-unknown-unknown`
 2 - install `cargo install wasm-bindgen-cli`
 3 - cargo build --target wasm32-unknown-unknown --release
 4 - create webpage with js and html
 5 - wasm-bindgen target/wasm32-unknown-unknown/release/rust_cnn.wasm --out-dir ./pkg --web
 6 - pyhton3 -m http.server
+
+Example html page with function
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WASM App</title>
+    <script type="module">
+        import init from './pkg/rustnn.js';
+
+        async function runWasm() {
+            const wasm = await init();
+            const result = wasm.test(1);
+            console.log(result);
+        }
+
+        runWasm();
+    </script>
+</head>
+<body>
+    <h1>Web App</h1>
+</body>
+</html>

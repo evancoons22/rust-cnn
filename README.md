@@ -12,7 +12,6 @@ Created for Machine Learning (Math 156) at UCLA
 ### A simple example
 
 ```rust
-
 // import crates
 use rustnn::nn::Network;
 use rustnn::nn::Layer;
@@ -50,7 +49,7 @@ fn main() {
 
 
     network.train(&dataloader, 0.006, 100, false); // 0.006 learning rate, 100 epochs, verbose = false
-    network.save_weights("weights.txt");
+    network.save_weights("weights.txt"); // save weights
 }
 ```
 

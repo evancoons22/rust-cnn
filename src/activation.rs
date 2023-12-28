@@ -55,7 +55,7 @@ impl ActivationFunction for Activation {
                         .map(|(&y_pred, y_true)| y_pred - y_true)
                         .collect()
                 }
-                _ => panic!("Backward not implemented for Softmax"),
+                _ => panic!("Softmax only works with cross entropy loss"),
             },
         }
     }

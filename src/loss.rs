@@ -59,10 +59,27 @@ impl Loss for LossFunction {
 fn test_loss_cross_entropy_backward() {
     use crate::loss::Loss;
     use crate::loss::LossFunction;
+
+    let epsilon = 1e-10;
     let y_pred = vec![0.001, 0.001, 0.998];
     let y_true = vec![0.0, 0.0, 1.0];
     let loss = LossFunction::CrossEntropy;
-    assert_eq!(loss.backward(&y_pred, &y_true), vec![0.001, 0.001, -0.002]);
+
+    let losscalc = loss.backward(&y_pred, &y_true);
+    let trueloss = vec![0.001, 0.001, -0.002];
+
+    assert_eq!(losscalc.len(), trueloss.len());
+
+    // tolerance for each element... floating point error
+    for (a, b) in losscalc.iter().zip(trueloss.iter()) {
+        assert!(
+            (a - b).abs() < epsilon,
+            "Elements differ more than allowed: {} != {}",
+            a, b
+        );
+    }
+
+    println!("Vectors are equal within the tolerance.")
 }
 
 #[test]

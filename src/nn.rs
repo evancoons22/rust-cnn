@@ -1,3 +1,4 @@
+use crate::dataloader::DataLoader;
 use crate::linalg::*;
 use crate::activation::*;
 use crate::loss::*;
@@ -45,10 +46,10 @@ impl Layer {
         }
     }
 
-    pub fn weight_grad_backwards(&self, inputs: &Vec<f64>, agradnext: &Vec<f64>) -> Matrix {
+    pub fn weight_grad_backwards(&self, inputs: &Vec<f64>, agradnext: &Vec<f64>, loss: &LossFunction) -> Matrix {
         let mut result = Matrix::new(self.output_size, self.input_size);
         let activation = self.activationdata.clone();
-        let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
+        let actgrad = self.activation.backward(&inputs, loss);
         //eprintln!("input size: {:?}", &self.input_size);
         //eprintln!("output size: {:?}", &self.output_size);
         //eprintln!("inputs len: {:?}", &inputs.len()); // 2
@@ -63,9 +64,9 @@ impl Layer {
         result
     }
 
-    pub fn bias_grad_backwards(&self, inputs: &Vec<f64>, agradnext: &Vec<f64>) -> Vec<f64> {
+    pub fn bias_grad_backwards(&self, inputs: &Vec<f64>, agradnext: &Vec<f64>, loss: &LossFunction) -> Vec<f64> {
         let mut result = vec![0.0; self.output_size];
-        let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
+        let actgrad = self.activation.backward(&inputs, loss);
         for j in 0..self.output_size {
             result[j] = actgrad[j] * agradnext[j];
         }
@@ -73,11 +74,11 @@ impl Layer {
     }
 
 
-    pub fn activation_grad(&self, inputs: &Vec<f64>, weights: Matrix, agradnext: &Vec<f64>) -> Vec<f64> {
+    pub fn activation_grad(&self, weights: Matrix, agradnext: &Vec<f64>, loss: &LossFunction) -> Vec<f64> {
         use crate::linalg::*;
         let mut result = vec![0.0; self.input_size];
         //let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
-        let actgrad = self.activation.backward(&self.activationdata, &LossFunction::MSE);
+        let actgrad = self.activation.backward(&self.activationdata, loss);
         let tweights = transpose(weights.clone());
         let first = dot_product(&agradnext, &actgrad);
         //eprintln!("actgrad len: {:?}", &actgrad.len());
@@ -115,6 +116,12 @@ impl Network {
 
     pub fn add_layer(&mut self, layer: Layer) {
         self.layers.push(layer);
+    }
+
+    pub fn add_layers(&mut self, layers: Vec<Layer>) {
+        for layer in layers {
+            self.layers.push(layer);
+        }
     }
 
     pub fn forward(&mut self, inputs: &Vec<f64>) -> Vec<f64> {
@@ -161,11 +168,11 @@ impl Network {
             };
 
 
-            let weightgrad = layer.weight_grad_backwards(&input, &agradnext);
+            let weightgrad = layer.weight_grad_backwards(&input, &agradnext, &self.loss);
             //update the activation gradient that is a trait of the layer
             //
             // ACTIVATION GRAD SHOULD NOT TAKE INPUTS
-            self.layers[i].activationgrad = layer.activation_grad(&input, layer.weights.clone(), &agradnext);
+            self.layers[i].activationgrad = layer.activation_grad(layer.weights.clone(), &agradnext, &self.loss);
             // update weights and biases
             //eprintln!("weightgrad: {:?}", &weightgrad.clone());
             self.layers[i].weights = self.layers[i].weights.clone() - (alpha * weightgrad);
@@ -173,6 +180,17 @@ impl Network {
         }
 
         }
+
+    pub fn train(&mut self, dataloader: &DataLoader, alpha: f64, epochs: usize, verbose: bool) {
+        for _ in 0..epochs {
+            self.forward(&dataloader.data[0]);
+            self.backward(&dataloader.data[0], &dataloader.labels[0], alpha);
+            if verbose {
+                eprintln!("loss: {:?}", self.loss.getloss(&self.layers[self.layers.len() - 1].activationdata, &dataloader.labels[0]));
+            }
+
+        }
+    }
 
 }
 
@@ -250,44 +268,49 @@ mod tests {
 
 
     #[test]
-    fn network_test() {
+    fn class_network_test() {
         use crate::nn::Network;
         use crate::nn::Layer;
         use crate::activation::Activation;
         use crate::loss::*;
-
-        let mut layer1 = Layer::new(2, 4, Activation::Relu);
-        layer1.biases = vec![0.0, 0.0, 0.0, 0.0];
-
-        let mut layer2 = Layer::new(4, 2, Activation::Relu);
-        layer2.biases = vec![0.0, 0.0];
+        use crate::dataloader::DataLoader;
 
         let mut network = Network::new();
+        network.loss = LossFunction::CrossEntropy;
 
-        network.add_layer(layer1.clone());
-        network.add_layer(layer2.clone());
+        network.add_layers(vec![
+            Layer::new(2, 4, Activation::Relu),
+            Layer::new(4, 2, Activation::Relu),
+            Layer::new(2, 1, Activation::Sigmoid),
+        ]);
 
-        let inputs = vec![1.0, 1.0];
-        let target = vec![2.0, 2.0];
+        let dataloader = DataLoader::new(vec![
+                                             vec![1.0, 1.0],
+                                             vec![0.0, 0.0],
+                                             vec![0.0, 1.0],
+                                             vec![1.0, 0.0],],
+                                        vec![
+                                            vec![1.0],
+                                            vec![1.0],
+                                            vec![0.0],
+                                            vec![0.0],], 1, false);
 
-        eprintln!("initial network weights 0: {:?}", network.layers[0].weights);
-        eprintln!("initial network weights 1: {:?}\n", network.layers[1].weights);
 
-        let initial = network.forward(&inputs);
-        network.forward(&inputs);
 
-        for i in 0..100 {
-            //eprintln!("network outputs on round {}: {:?}", i, network.forward(&inputs));
-            network.forward(&inputs);
-            network.backward(&inputs, &target, 0.004);
-            eprintln!("loss on round {}: {:?}", i, network.loss.getloss(&network.layers[1].activationdata, &target));
-            //eprintln!("network weights 0 updated: {:?}", network.layers[0].weights);
-            //eprintln!("network weights 1 updated: {:?}", network.layers[1].weights);
-        }
+        //let initial_loss = network.forward(&dataloader.data[0]);
+        let initial_loss = network.loss.getloss(&network.layers[network.layers.len() - 1].activationdata, &dataloader.labels[0]);
 
-        eprintln!("initial network outputs: {:?}, \nfinal network outputs: {:?}", initial, network.forward(&inputs));
+        network.train(&dataloader, 0.006, 100, true);
 
-        assert_eq!(network.layers[0].weights.data[0][0], 1.1);
+        let final_loss = network.loss.getloss(&network.layers[network.layers.len() - 1].activationdata, &dataloader.labels[0]);
+
+        //eprintln!("initial network output: {:?}\n, final network output: {:?}", initial, last);
+        eprintln!("initial loss: {:?}\n, final loss: {:?}", initial_loss, final_loss);
+        //eprintln!("true output: {:?}\n", dataloader.labels[0]);
+
+        //assert_eq!(network.layers[0].weights.data[0][0], 1.1);
+        //asser that initial loss is greater than final loss
+        assert!(initial_loss > final_loss);
 
     }
 

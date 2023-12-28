@@ -192,6 +192,49 @@ impl Network {
         }
     }
 
+    pub fn save_weights(&self, filename: &str) {
+        use std::fs::File;
+        use std::io::Write;
+        let mut file = File::create(filename).expect("Unable to create file");
+        for layer in &self.layers {
+            for row in &layer.weights.data {
+                for col in row {
+                    file.write_all(format!("{},", col).as_bytes()).expect("Unable to write data");
+                }
+            }
+            file.write_all(b"\n").expect("Unable to write data");
+        }
+    }
+
+    pub fn load_weights(&mut self, filename: &str) {
+        use std::fs::File;
+        use std::io::{BufRead, BufReader};
+        let file = File::open(filename).expect("Unable to open file");
+        let reader = BufReader::new(file);
+        let mut weights: Vec<Vec<f64>> = Vec::new();
+        for line in reader.lines() {
+            let line = line.expect("Unable to read line");
+            let mut row: Vec<f64> = Vec::new();
+            //remove the last comma from line
+            let line = line[..line.len() - 1].to_string();
+            for col in line.split(",") {
+                row.push(col.parse::<f64>().expect("Unable to parse float"));
+            }
+            weights.push(row);
+        }
+        let mut index = 0;
+        for layer in &mut self.layers {
+
+            for i in 0..layer.weights.nrows {
+                for j in 0..layer.weights.ncols {
+                    layer.weights.data[i][j] = weights[index][i * layer.weights.ncols + j];
+                }
+            }
+            index += 1;
+        }
+
+    }
+
 }
 
 
@@ -300,7 +343,7 @@ mod tests {
         //let initial_loss = network.forward(&dataloader.data[0]);
         let initial_loss = network.loss.getloss(&network.layers[network.layers.len() - 1].activationdata, &dataloader.labels[0]);
 
-        network.train(&dataloader, 0.006, 100, true);
+        network.train(&dataloader, 0.006, 100, false);
 
         let final_loss = network.loss.getloss(&network.layers[network.layers.len() - 1].activationdata, &dataloader.labels[0]);
 
@@ -308,7 +351,6 @@ mod tests {
         eprintln!("initial loss: {:?}\n, final loss: {:?}", initial_loss, final_loss);
         //eprintln!("true output: {:?}\n", dataloader.labels[0]);
 
-        //assert_eq!(network.layers[0].weights.data[0][0], 1.1);
         //asser that initial loss is greater than final loss
         assert!(initial_loss > final_loss);
 

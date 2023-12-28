@@ -12,37 +12,45 @@ Created for Machine Learning (Math 156) at UCLA
 ### A simple example
 
 ```rust
-fn main() { 
-    //import crates   
-    use crate::nn::Network;
-    use crate::nn::Layer;
-    use crate::activation::Activation;
-    use crate::loss::*;
 
-    //define inputs
-    let inputs = vec![1.0, 1.0];
-    let target = vec![2.0, 2.0];
+// import crates
+use rustnn::nn::Network;
+use rustnn::nn::Layer;
+use rustnn::activation::Activation;
+use rustnn::loss::*;
+use rustnn::dataloader::DataLoader;
 
-    //define layers
-    let mut layer1 = Layer::new(2, 4, Activation::Relu);
-    layer1.biases = vec![0.0, 0.0, 0.0, 0.0];
-    let mut layer2 = Layer::new(4, 2, Activation::Relu);
-    layer2.biases = vec![0.0, 0.0];
+fn main() {
 
-    //define network ... add layers
+    // initialize a new network and define loss
     let mut network = Network::new();
-    network.add_layer(layer1.clone());
-    network.add_layer(layer2.clone());
+    network.loss = LossFunction::CrossEntropy;
 
-    //train
-    for i in 0..100 {
-        network.forward(&inputs);
-        network.backward(&inputs, &target, 0.004);
-        println!("loss on round {}: {:?}", i, network.loss.getloss(&network.layers[1].activationdata, &target));
-    }
+    // add layers to network
+    network.add_layers(vec![
+        Layer::new(2, 4, Activation::Relu),
+        Layer::new(4, 2, Activation::Relu),
+        Layer::new(2, 1, Activation::Sigmoid),
+    ]);
 
-    println!("network output: {:?}", network.forward(&inputs);
+    // load data
+    let dataloader = DataLoader::new(vec![
+                                         vec![1.0, 1.0],
+                                         vec![0.0, 0.0],
+                                         vec![0.0, 1.0],
+                                         vec![1.0, 0.0],], // data inputs
+                                     vec![
+                                         vec![1.0],
+                                         vec![1.0],
+                                         vec![0.0],
+                                         vec![0.0]], // data labels
+                                     1,  // batch size
+                                     false); // shuffle
 
+
+
+    network.train(&dataloader, 0.006, 100, false); // 0.006 learning rate, 100 epochs, verbose = false
+    network.save_weights("weights.txt");
 }
 ```
 

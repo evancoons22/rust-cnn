@@ -166,22 +166,18 @@ impl Network {
                 }
 
             }
+
             if verbose {
-                //eprintln!("loss: {:?}", self.loss.getloss(&self.layers[self.layers.len() - 1].activationdata, &dataloader.labels));
-                eprintln!("epoch {:?} loss: {:?}", e, loss);
+                let mut correct = 0.0;
+                for i in 0..dataloader.data.len() {
+                    let outputs = self.forward(&dataloader.data[i]);
+                    let outputs = self.classify(&outputs);
+                    if outputs == dataloader.labels[i] {
+                        correct += 1.0;
+                    }
+                }
+                eprintln!("epoch {:?} loss: {:?}, accuracy: {:?}", e, loss, correct / dataloader.data.len() as f64);
             }
-            //self.forward(&dataloader.data[i]);
-            //self.backward(&dataloader.data[i], &dataloader.labels[i], alpha);
-            //if verbose {
-                //eprintln!("loss: {:?}", self.loss.getloss(&self.layers[self.layers.len() - 1].activationdata, &dataloader.labels[2]));
-            //}
-            //self.forward(&dataloader.data[0]);
-            //self.backward(&dataloader.data[0], &dataloader.labels[0], alpha);
-            //if verbose {
-                //eprintln!("loss: {:?}", self.loss.getloss(&self.layers[self.layers.len() - 1].activationdata, &dataloader.labels[0]));
-            //}
-
-
         }
     }
 
@@ -247,6 +243,20 @@ pub fn to_onehot(labels: Vec<Vec<f64>>, size: usize) -> Vec<Vec<f64>> {
         result.push(onehot);
     }
     result
+}
+
+pub fn classify(outputs: &Vec<f64>) -> Vec<f64> {
+    outputs.iter().map(|x| if *x > 0.5 { 1.0 } else { 0.0 }).collect()
+}
+
+pub fn accuracy(y_true: &Vec<Vec<f64>>, y_pred: &Vec<Vec<f64>>) -> f64 {
+    let mut correct = 0.0;
+    for i in 0..y_true.len() {
+        if y_true[i] == y_pred[i] {
+            correct += 1.0;
+        }
+    }
+    correct / y_true.len() as f64
 }
 
 

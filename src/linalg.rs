@@ -30,7 +30,7 @@ impl Matrix {
             nrows,
             ncols,
             data: (0..nrows)
-                .map(|_| (0..ncols).map(|_| rng.gen_range(-1.0..1.0)).collect())
+                .map(|_| (0..ncols).map(|_| rng.gen_range(-0.5..0.5)).collect())
                 .collect(),
         }
     }

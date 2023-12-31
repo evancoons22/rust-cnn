@@ -50,12 +50,6 @@ impl Layer {
         let mut result = Matrix::new(self.output_size, self.input_size);
         let activation = self.activationdata.clone();
         let actgrad = self.activation.backward(&inputs, loss);
-        //eprintln!("input size: {:?}", &self.input_size);
-        //eprintln!("output size: {:?}", &self.output_size);
-        //eprintln!("inputs len: {:?}", &inputs.len()); // 2
-        //eprintln!("actgrad len: {:?}", &actgrad.len()); // 4
-        //eprintln!("activation len: {:?}", &activation.len()); // 2
-        //eprintln!("agradnext len: {:?}", &agradnext.len()); // 2
         for j in 0..self.output_size {
             for k in 0..self.input_size {
                 result.data[j][k] = actgrad[k] * activation[j] * agradnext[j];
@@ -77,23 +71,11 @@ impl Layer {
     pub fn activation_grad(&self, weights: Matrix, agradnext: &Vec<f64>, loss: &LossFunction) -> Vec<f64> {
         use crate::linalg::*;
         let mut result = vec![0.0; self.input_size];
-        //let actgrad = self.activation.backward(&inputs, &LossFunction::MSE);
         let actgrad = self.activation.backward(&self.activationdata, loss);
         let tweights = transpose(weights.clone());
         let first = dot_product(&agradnext, &actgrad);
-        //eprintln!("actgrad len: {:?}", &actgrad.len());
-        //eprintln!("actgradnext len: {:?}", &agradnext.len());
-        //eprintln!("tweights ncols: {:?}", &tweights.ncols);
-        //eprintln!("length of result: {:?}", &result.len());
 
         for k in 0..self.input_size {
-            //result[k] += dot_product(&[dot_product(&tweights.data[k], &actgrad)], &agradnext);
-            //result[k] += dot_product(&tweights.data[k], &add(&actgrad, &agradnext));
-            //result[k] = dot_product(&tweights.data[k], &first);
-            
-            //result[k] = tweights[k] * first;
-            //iterate over tweights[k] and multiply each by first, then sum
-            //
             result[k] = tweights.data[k].iter().map(|&x| x * first).sum();
         }
         result
@@ -146,13 +128,10 @@ impl Network {
 
         activationgrad.append(&mut self.loss.backward(&outputs, &y_true));
 
-
         // set the activation of the last layer equal to activationgrad
         self.layers[index].activationgrad = activationgrad.clone();
 
         // go through the layers backwards
-
-        // why isn't this loop reached?
         for i in (0..self.layers.len()).rev() {
             let layer = &self.layers[i];
 
@@ -169,25 +148,39 @@ impl Network {
 
 
             let weightgrad = layer.weight_grad_backwards(&input, &agradnext, &self.loss);
-            //update the activation gradient that is a trait of the layer
-            //
-            // ACTIVATION GRAD SHOULD NOT TAKE INPUTS
             self.layers[i].activationgrad = layer.activation_grad(layer.weights.clone(), &agradnext, &self.loss);
-            // update weights and biases
-            //eprintln!("weightgrad: {:?}", &weightgrad.clone());
             self.layers[i].weights = self.layers[i].weights.clone() - (alpha * weightgrad);
-            //self.layers[i].biases = subtract(&self.layers[i].biases, &biasgrad);
         }
 
         }
 
-    pub fn train(&mut self, dataloader: &DataLoader, alpha: f64, epochs: usize, verbose: bool) {
-        for _ in 0..epochs {
-            self.forward(&dataloader.data[0]);
-            self.backward(&dataloader.data[0], &dataloader.labels[0], alpha);
-            if verbose {
-                eprintln!("loss: {:?}", self.loss.getloss(&self.layers[self.layers.len() - 1].activationdata, &dataloader.labels[0]));
+    pub fn train(&mut self, dataloader: &mut DataLoader, alpha: f64, epochs: usize, verbose: bool) {
+        for e in 0..epochs {
+            let mut loss: f64 = 0.0;
+            for _ in 0..dataloader.num_batches {
+                for i in 0..dataloader.batch_size {
+                    let (batch_data, batch_labels) = dataloader.next_batch();
+                    self.forward(&batch_data[i]);
+                    self.backward(&batch_data[i], &batch_labels[i], alpha);
+                    loss += self.loss.getloss(&self.layers[self.layers.len() - 1].activationdata, &batch_labels[i]);
+                }
+
             }
+            if verbose {
+                //eprintln!("loss: {:?}", self.loss.getloss(&self.layers[self.layers.len() - 1].activationdata, &dataloader.labels));
+                eprintln!("epoch {:?} loss: {:?}", e, loss);
+            }
+            //self.forward(&dataloader.data[i]);
+            //self.backward(&dataloader.data[i], &dataloader.labels[i], alpha);
+            //if verbose {
+                //eprintln!("loss: {:?}", self.loss.getloss(&self.layers[self.layers.len() - 1].activationdata, &dataloader.labels[2]));
+            //}
+            //self.forward(&dataloader.data[0]);
+            //self.backward(&dataloader.data[0], &dataloader.labels[0], alpha);
+            //if verbose {
+                //eprintln!("loss: {:?}", self.loss.getloss(&self.layers[self.layers.len() - 1].activationdata, &dataloader.labels[0]));
+            //}
+
 
         }
     }
@@ -235,6 +228,25 @@ impl Network {
 
     }
 
+}
+
+// other useful functions,
+pub fn to_onehot(labels: Vec<Vec<f64>>, size: usize) -> Vec<Vec<f64>> {
+    if labels[0].len() == size {
+        // return labels if already one hot encoded
+        return labels;
+    }
+    let mut result = Vec::new();
+    for label in labels {
+        let mut onehot = vec![0.0; size];
+        for i in 0..size {
+            if label[0] == i as f64 {
+                onehot[i] = 1.0;
+            }
+        }
+        result.push(onehot);
+    }
+    result
 }
 
 
@@ -327,7 +339,7 @@ mod tests {
             Layer::new(2, 1, Activation::Sigmoid),
         ]);
 
-        let dataloader = DataLoader::new(vec![
+        let mut dataloader = DataLoader::new(vec![
                                              vec![1.0, 1.0],
                                              vec![0.0, 0.0],
                                              vec![0.0, 1.0],
@@ -343,7 +355,7 @@ mod tests {
         //let initial_loss = network.forward(&dataloader.data[0]);
         let initial_loss = network.loss.getloss(&network.layers[network.layers.len() - 1].activationdata, &dataloader.labels[0]);
 
-        network.train(&dataloader, 0.006, 100, false);
+        network.train(&mut dataloader, 0.006, 100, false);
 
         let final_loss = network.loss.getloss(&network.layers[network.layers.len() - 1].activationdata, &dataloader.labels[0]);
 

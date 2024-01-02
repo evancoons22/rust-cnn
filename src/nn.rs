@@ -48,11 +48,18 @@ impl Layer {
 
     pub fn weight_grad_backwards(&self, inputs: &Vec<f64>, agradnext: &Vec<f64>, loss: &LossFunction) -> Matrix {
         let mut result = Matrix::new(self.output_size, self.input_size);
-        let activation = self.activationdata.clone();
+        //let activation = self.activationdata.clone();
         let actgrad = self.activation.backward(&inputs, loss);
+        //eprintln!("actgrad: {:?}", actgrad);
+        //eprintln!("weight dimensions: {:?}x{:?}", result.data.len(), result.data[0].len());
+        //eprintln!("result dimensions: {:?}x{:?}", result.data.len(), result.data[0].len());
+        //eprintln!("output size: {:?}", self.output_size);
+        //eprintln!("input size: {:?}", self.input_size);
         for j in 0..self.output_size {
             for k in 0..self.input_size {
-                result.data[j][k] = actgrad[k] * activation[j] * agradnext[j];
+                //result.data[j][k] = actgrad[k] * activation[j] * agradnext[j];
+                // print all dimensions to make sure they match up
+                result.data[j][k] = actgrad[j] * inputs[k] * agradnext[j];
             }
         }
         result
@@ -133,22 +140,30 @@ impl Network {
 
         // go through the layers backwards
         for i in (0..self.layers.len()).rev() {
-            let layer = &self.layers[i];
 
+            // if next gradient is the end, use the last activation data, otherwise, use the next layer's activationgrad
             let agradnext = if i == self.layers.len() - 1 {
                 activationgrad.clone()
             } else {
                 self.layers[i + 1].activationgrad.clone()
             };
 
+            // if the input is the first layer, use the inputs, otherwise, use the previous layer's activation data
             let input = match i {
                 0 => inputs.clone(),
                 _ => self.layers[i - 1].activationdata.clone(),
             };
 
-
-            let weightgrad = layer.weight_grad_backwards(&input, &agradnext, &self.loss);
+            //let layer = &self.layers[i];
+            //let weightgrad = layer.weight_grad_backwards(&input, &agradnext, &self.loss);
+            //self.layers[i].activationgrad = layer.activation_grad(layer.weights.clone(), &agradnext, &self.loss);
+            //self.layers[i].weights = self.layers[i].weights.clone() - (alpha * weightgrad);
+            
+            let layer = &self.layers[i];
             self.layers[i].activationgrad = layer.activation_grad(layer.weights.clone(), &agradnext, &self.loss);
+
+            let layer = &self.layers[i].clone();
+            let weightgrad = layer.weight_grad_backwards(&input, &layer.activationdata, &self.loss);
             self.layers[i].weights = self.layers[i].weights.clone() - (alpha * weightgrad);
         }
 

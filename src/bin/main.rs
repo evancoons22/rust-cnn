@@ -17,9 +17,9 @@ fn main() {
     let labels = vec![ vec![1.0], vec![1.0], vec![0.0], vec![0.0],];
     //let labels = to_onehot(labels, 0);
 
-    let mut dataloader = DataLoader::new(data, labels, 2, false); // 1 = batch size and false = shuffle
+    let mut dataloader = DataLoader::new(data, labels, 1, false); // 1 = batch size and false = shuffle
 
-    network.train(&mut dataloader, 0.01, 200, true);
+    network.train(&mut dataloader, 0.01, 2, true);
     //network.save_weights("weights.txt");
 
     println!("network forward: {:?} ", network.forward(&dataloader.data[0]));

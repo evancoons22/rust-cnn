@@ -156,6 +156,10 @@ impl Mul<Matrix> for f64 {
     }
 }
 
+pub fn scalar_mul_vec(scalar: f64, vec: &[f64]) -> Vec<f64> {
+    let new = vec.iter().map(|&x| scalar * x).collect();
+    return new
+}
 
 pub fn dot_product(vec1: &[f64], vec2: &[f64]) -> f64 {
     if vec1.len() != vec2.len() {

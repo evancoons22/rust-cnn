@@ -2,6 +2,7 @@ use crate::dataloader::DataLoader;
 use crate::linalg::*;
 use crate::activation::*;
 use crate::loss::*;
+use rand::Rng;
 
 #[derive(Debug, PartialEq)]
 pub struct Layer {
@@ -39,14 +40,15 @@ impl Layer {
             input_size,
             output_size,
             weights: Matrix::rand(output_size, input_size),
-            biases: vec![0.0; output_size],
+            // generate random biases in between -1 and 1
+            biases: (0..output_size).map(|_| rand::thread_rng().gen_range(-1.0..1.0)).collect(),
             activation,
             activationdata: vec![0.0; output_size],
             activationgrad: vec![0.0; output_size],
         }
     }
 
-    pub fn weight_grad_backwards(&self, inputs: &Vec<f64>, agradnext: &Vec<f64>, loss: &LossFunction) -> Matrix {
+    pub fn weight_grad_backwards(&mut self, inputs: &Vec<f64>, agradnext: &Vec<f64>, loss: &LossFunction, alpha: f64) {
         let mut result = Matrix::new(self.output_size, self.input_size);
         //let activation = self.activationdata.clone();
         let actgrad = self.activation.backward(&inputs, loss);
@@ -62,30 +64,35 @@ impl Layer {
                 result.data[j][k] = actgrad[j] * inputs[k] * agradnext[j];
             }
         }
-        result
+        //result
+        self.weights = self.weights.clone() - alpha * result;
     }
 
-    pub fn bias_grad_backwards(&self, inputs: &Vec<f64>, agradnext: &Vec<f64>, loss: &LossFunction) -> Vec<f64> {
+    pub fn bias_grad_backwards(&mut self, inputs: &Vec<f64>, agradnext: &Vec<f64>, loss: &LossFunction, alpha: f64) {
         let mut result = vec![0.0; self.output_size];
-        let actgrad = self.activation.backward(&inputs, loss);
+        let zgrad = self.activation.backward(&inputs, loss);
         for j in 0..self.output_size {
-            result[j] = actgrad[j] * agradnext[j];
+            result[j] = zgrad[j] * agradnext[j];
         }
-        result
+        //result
+        //self.biases = self.biases - scalar_mul_vec(alpha, vec)
+        self.biases = weight_update(alpha, self.biases.clone(), result);
+        
     }
 
 
-    pub fn activation_grad(&self, weights: Matrix, agradnext: &Vec<f64>, loss: &LossFunction) -> Vec<f64> {
+    pub fn activation_grad(&mut self, weights: Matrix, agradnext: &Vec<f64>, anext: Vec<f64>, loss: &LossFunction) {
         use crate::linalg::*;
         let mut result = vec![0.0; self.input_size];
-        let actgrad = self.activation.backward(&self.activationdata, loss);
+        let zgradnext = self.activation.backward(&anext, loss);
         let tweights = transpose(weights.clone());
-        let first = dot_product(&agradnext, &actgrad);
+        let first = dot_product(&agradnext, &zgradnext);
 
         for k in 0..self.input_size {
             result[k] = tweights.data[k].iter().map(|&x| x * first).sum();
         }
-        result
+        self.activationdata = result;
+        //result
     }
 }
 
@@ -154,17 +161,25 @@ impl Network {
                 _ => self.layers[i - 1].activationdata.clone(),
             };
 
-            //let layer = &self.layers[i];
-            //let weightgrad = layer.weight_grad_backwards(&input, &agradnext, &self.loss);
-            //self.layers[i].activationgrad = layer.activation_grad(layer.weights.clone(), &agradnext, &self.loss);
-            //self.layers[i].weights = self.layers[i].weights.clone() - (alpha * weightgrad);
             
-            let layer = &self.layers[i];
-            self.layers[i].activationgrad = layer.activation_grad(layer.weights.clone(), &agradnext, &self.loss);
+            if i == self.layers.len() - 1 { 
+                // activation grad for the last layer
+                self.layers[i].activationgrad = agradnext.clone();
+                self.layers[i].weight_grad_backwards(&input, &agradnext, &self.loss, alpha);
+            } else {
+                // activation grad for the other layers
+                let nextweights = self.layers[i + 1].weights.clone();
+                let anext = self.layers[i + 1].activationdata.clone();
+                let athis = self.layers[i].activationdata.clone();
 
-            let layer = &self.layers[i].clone();
-            let weightgrad = layer.weight_grad_backwards(&input, &layer.activationdata, &self.loss);
-            self.layers[i].weights = self.layers[i].weights.clone() - (alpha * weightgrad);
+                //update activations
+                self.layers[i].activation_grad(nextweights, &agradnext, anext, &self.loss);
+
+                // bias update is similar to weights
+                self.layers[i].bias_grad_backwards(&input, &athis, &self.loss, alpha);
+                self.layers[i].weight_grad_backwards(&input, &athis, &self.loss, alpha);
+            }
+
         }
 
         }
@@ -274,6 +289,14 @@ pub fn accuracy(y_true: &Vec<Vec<f64>>, y_pred: &Vec<Vec<f64>>) -> f64 {
     correct / y_true.len() as f64
 }
 
+pub fn weight_update(alpha: f64, previous: Vec<f64>, gradient: Vec<f64>) -> Vec<f64> {
+    let mut result = vec![0.0; previous.len()];
+    for i in 0..previous.len() {
+        result[i] = previous[i] - alpha * gradient[i];
+    }
+    return result;
+        
+}
 
 #[cfg(test)]
 mod tests {

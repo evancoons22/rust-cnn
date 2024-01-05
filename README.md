@@ -13,10 +13,9 @@ Created for Machine Learning (Math 156) at UCLA
 
 ```rust
 // import crates
-use rustnn::nn::Network;
-use rustnn::nn::Layer;
-use rustnn::activation::Activation;
+use rustnn::nn::*;
 use rustnn::loss::*;
+use rustnn::activation::Activation;
 use rustnn::dataloader::DataLoader;
 
 fn main() {
@@ -50,6 +49,9 @@ fn main() {
 
     network.train(&dataloader, 0.006, 100, false); // 0.006 learning rate, 100 epochs, verbose = false
     network.save_weights("weights.txt"); // save weights
+
+    //print example network output 
+    println!("network output for 1.0, 1.0: {:?}", network.forward(&dataloader.data[0]))
 }
 ```
 

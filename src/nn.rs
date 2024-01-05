@@ -13,6 +13,8 @@ pub struct Layer {
     pub activation: Activation,
     pub activationdata: Vec<f64>,
     pub activationgrad: Vec<f64>,
+    pub previous_layer: Option<Box<Layer>>,
+    pub next_layer: Option<Box<Layer>>,
 }
 
 impl Clone for Layer {
@@ -25,6 +27,8 @@ impl Clone for Layer {
             activation: self.activation.clone(),
             activationdata: self.activationdata.clone(),
             activationgrad: self.activationgrad.clone(),
+            previous_layer: self.previous_layer.clone(),
+            next_layer: self.next_layer.clone(),
         }
     }
 }
@@ -45,6 +49,8 @@ impl Layer {
             activation,
             activationdata: vec![0.0; output_size],
             activationgrad: vec![0.0; output_size],
+            previous_layer: None,
+            next_layer: None,
         }
     }
 
@@ -127,6 +133,7 @@ impl Network {
         }
         outputs
     }
+
 
 
     pub fn classify(&self, outputs: &Vec<f64>) -> Vec<f64> {
@@ -318,6 +325,8 @@ mod tests {
             activation: Activation::None,
             activationdata: vec![0.0, 0.0],
             activationgrad: vec![0.0, 0.0],
+            previous_layer: None,
+            next_layer: None,
         };
 
         let inputs = vec![1.0, 2.0];
@@ -344,6 +353,8 @@ mod tests {
             activation: Activation::None,
             activationdata: vec![0.0, 0.0],
             activationgrad: vec![0.0, 0.0],
+            previous_layer: None,
+            next_layer: None,
         };
 
         let inputs = vec![1.0, 2.0];

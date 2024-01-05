@@ -13,14 +13,15 @@ fn main() {
         Layer::new(2, 1, Activation::Sigmoid),
     ]);
 
-    let data = vec![ vec![1.0, 1.0], vec![0.0, 0.0], vec![0.0, 1.0], vec![1.0, 0.0],];
-    let labels = vec![ vec![1.0], vec![1.0], vec![0.0], vec![0.0],];
+    let data = vec![ vec![1.0, 1.0], vec![0.0, 0.0], vec![0.0, 1.0], vec![1.0, 0.0], vec![4.0, 4.0], vec![5.0, 5.0], vec![5.0, 4.0], vec![4.0, 5.0]];
+    let labels = vec![ vec![1.0], vec![1.0], vec![1.0], vec![1.0], vec![0.0], vec![0.0], vec![0.0], vec![0.0]];
     //let labels = to_onehot(labels, 0);
 
     let mut dataloader = DataLoader::new(data, labels, 1, false); // 1 = batch size and false = shuffle
 
-    network.train(&mut dataloader, 0.01, 2, true);
+    network.train(&mut dataloader, 0.1, 1000, true);
     //network.save_weights("weights.txt");
+    //initial loss
 
     println!("network forward: {:?} ", network.forward(&dataloader.data[0]));
 

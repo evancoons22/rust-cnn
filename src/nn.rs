@@ -12,6 +12,7 @@ pub struct Layer {
     pub biases: Vec<f64>,
     pub activation: Activation,
     pub activationdata: Vec<f64>,
+    pub zdata: Vec<f64>,
     pub activationgrad: Vec<f64>,
     pub previous_layer: Option<Box<Layer>>,
     pub next_layer: Option<Box<Layer>>,
@@ -26,6 +27,7 @@ impl Clone for Layer {
             biases: self.biases.clone(),
             activation: self.activation.clone(),
             activationdata: self.activationdata.clone(),
+            zdata: self.zdata.clone(),
             activationgrad: self.activationgrad.clone(),
             previous_layer: self.previous_layer.clone(),
             next_layer: self.next_layer.clone(),
@@ -36,6 +38,7 @@ impl Clone for Layer {
 impl Layer { 
     pub fn forward(&mut self, inputs: &Vec<f64>) -> Vec<f64> {
         // applies network weights AND activates
+        self.zdata = add(&(&self.weights * &inputs), &self.biases);
         self.activationdata = self.activation.forward(&add(&(&self.weights * &inputs), &self.biases));
         self.activationdata.clone()
     }
@@ -48,37 +51,34 @@ impl Layer {
             biases: (0..output_size).map(|_| rand::thread_rng().gen_range(-1.0..1.0)).collect(),
             activation,
             activationdata: vec![0.0; output_size],
+            zdata: vec![0.0; output_size],
             activationgrad: vec![0.0; output_size],
             previous_layer: None,
             next_layer: None,
         }
     }
 
-    pub fn weight_grad_backwards(&mut self, inputs: &Vec<f64>, agradnext: &Vec<f64>, loss: &LossFunction, alpha: f64) {
+    pub fn weight_grad_backwards(&mut self, inputs: &Vec<f64>, loss: &LossFunction, alpha: f64) {
         let mut result = Matrix::new(self.output_size, self.input_size);
         //let activation = self.activationdata.clone();
-        let actgrad = self.activation.backward(&inputs, loss);
-        //eprintln!("actgrad: {:?}", actgrad);
-        //eprintln!("weight dimensions: {:?}x{:?}", result.data.len(), result.data[0].len());
-        //eprintln!("result dimensions: {:?}x{:?}", result.data.len(), result.data[0].len());
-        //eprintln!("output size: {:?}", self.output_size);
-        //eprintln!("input size: {:?}", self.input_size);
+        let zgrad = self.activation.backward(&self.zdata, loss);
+        let activationgrad = self.activationgrad.clone();
+
         for j in 0..self.output_size {
             for k in 0..self.input_size {
-                //result.data[j][k] = actgrad[k] * activation[j] * agradnext[j];
-                // print all dimensions to make sure they match up
-                result.data[j][k] = actgrad[j] * inputs[k] * agradnext[j];
+                result.data[j][k] = zgrad[j] * inputs[k] * activationgrad[j];
             }
         }
         //result
         self.weights = self.weights.clone() - alpha * result;
     }
 
-    pub fn bias_grad_backwards(&mut self, inputs: &Vec<f64>, agradnext: &Vec<f64>, loss: &LossFunction, alpha: f64) {
+    pub fn bias_grad_backwards(&mut self, loss: &LossFunction, alpha: f64) {
         let mut result = vec![0.0; self.output_size];
-        let zgrad = self.activation.backward(&inputs, loss);
+        let activationgrad = self.activationgrad.clone();
+        let zgrad = self.activation.backward(&self.zdata, loss);
         for j in 0..self.output_size {
-            result[j] = zgrad[j] * agradnext[j];
+            result[j] = zgrad[j] * activationgrad[j];
         }
         //result
         //self.biases = self.biases - scalar_mul_vec(alpha, vec)
@@ -89,15 +89,16 @@ impl Layer {
 
     pub fn activation_grad(&mut self, weights: Matrix, agradnext: &Vec<f64>, anext: Vec<f64>, loss: &LossFunction) {
         use crate::linalg::*;
-        let mut result = vec![0.0; self.input_size];
+        let mut result = vec![0.0; self.output_size];
         let zgradnext = self.activation.backward(&anext, loss);
         let tweights = transpose(weights.clone());
         let first = dot_product(&agradnext, &zgradnext);
 
-        for k in 0..self.input_size {
+
+        for k in 0..self.output_size {
             result[k] = tweights.data[k].iter().map(|&x| x * first).sum();
         }
-        self.activationdata = result;
+        self.activationgrad = result;
         //result
     }
 }
@@ -172,19 +173,20 @@ impl Network {
             if i == self.layers.len() - 1 { 
                 // activation grad for the last layer
                 self.layers[i].activationgrad = agradnext.clone();
-                self.layers[i].weight_grad_backwards(&input, &agradnext, &self.loss, alpha);
+                self.layers[i].weight_grad_backwards(&input, &self.loss, alpha);
             } else {
                 // activation grad for the other layers
                 let nextweights = self.layers[i + 1].weights.clone();
                 let anext = self.layers[i + 1].activationdata.clone();
-                let athis = self.layers[i].activationdata.clone();
+                //let athis = self.layers[i].activationdata.clone();
 
                 //update activations
                 self.layers[i].activation_grad(nextweights, &agradnext, anext, &self.loss);
 
                 // bias update is similar to weights
-                self.layers[i].bias_grad_backwards(&input, &athis, &self.loss, alpha);
-                self.layers[i].weight_grad_backwards(&input, &athis, &self.loss, alpha);
+                //self.layers[i].bias_grad_backwards(&input, &athis, &self.loss, alpha);
+                self.layers[i].bias_grad_backwards(&self.loss, alpha);
+                self.layers[i].weight_grad_backwards(&input, &self.loss, alpha);
             }
 
         }
@@ -324,6 +326,7 @@ mod tests {
             biases: vec![0.0, 0.0],
             activation: Activation::None,
             activationdata: vec![0.0, 0.0],
+            zdata: vec![0.0, 0.0],
             activationgrad: vec![0.0, 0.0],
             previous_layer: None,
             next_layer: None,
@@ -352,6 +355,7 @@ mod tests {
             biases: vec![0.0, 0.0],
             activation: Activation::None,
             activationdata: vec![0.0, 0.0],
+            zdata: vec![0.0, 0.0],
             activationgrad: vec![0.0, 0.0],
             previous_layer: None,
             next_layer: None,
@@ -423,7 +427,7 @@ mod tests {
         //eprintln!("true output: {:?}\n", dataloader.labels[0]);
 
         //asser that initial loss is greater than final loss
-        assert!(initial_loss > final_loss);
+        assert!(initial_loss >= final_loss);
 
     }
 

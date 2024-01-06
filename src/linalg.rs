@@ -274,3 +274,18 @@ fn test_dot_product() {
     let c: f64 = 14.0;
     assert_eq!(dot_product(&a, &b), c);
 }
+
+#[test]
+fn transpose_test() {
+    let a = Matrix { 
+        nrows: 2,
+        ncols: 3,
+        data: vec![vec![1.0, 2.0, 3.0], vec![4.0, 5.0, 6.0]],
+    };
+    let b = Matrix { 
+        nrows: 3,
+        ncols: 2,
+        data: vec![vec![1.0, 4.0], vec![2.0, 5.0], vec![3.0, 6.0]],
+    };
+    assert_eq!(transpose(a), b);
+}

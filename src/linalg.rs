@@ -168,6 +168,13 @@ pub fn dot_product(vec1: &[f64], vec2: &[f64]) -> f64 {
     vec1.iter().zip(vec2.iter()).map(|(&x, &y)| x * y).sum()
 }
 
+pub fn elementwise_mul(vec1: &[f64], vec2: &[f64]) -> Vec<f64> {
+    if vec1.len() != vec2.len() {
+        panic!("Vectors must be of equal length");
+    }
+    vec1.iter().zip(vec2.iter()).map(|(&x, &y)| x * y).collect()
+}
+
 pub fn transpose(matrix: Matrix) -> Matrix {
     let mut result = Matrix::new(matrix.ncols(), matrix.nrows());
     for i in 0..matrix.nrows() {

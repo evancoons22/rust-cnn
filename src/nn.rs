@@ -60,13 +60,10 @@ impl Layer {
 
     pub fn weight_grad_backwards(&mut self, inputs: &Vec<f64>, loss: &LossFunction, alpha: f64) {
         let mut result = Matrix::new(self.output_size, self.input_size);
-        //let activation = self.activationdata.clone();
         let zgrad = self.activation.backward(&self.zdata, loss);
-        let activationgrad = self.activationgrad.clone();
-
         for j in 0..self.output_size {
             for k in 0..self.input_size {
-                result.data[j][k] = zgrad[j] * inputs[k] * activationgrad[j];
+                result.data[j][k] = zgrad[j] * inputs[k] * self.activationgrad[j];
             }
         }
 
@@ -74,28 +71,26 @@ impl Layer {
     }
 
     pub fn bias_grad_backwards(&mut self, loss: &LossFunction, alpha: f64) {
+        // bias grad is similar to weight grad, but only 1d, and inputs are always 1
         let mut result = vec![0.0; self.output_size];
-        let activationgrad = self.activationgrad.clone();
         let zgrad = self.activation.backward(&self.zdata, loss);
         for j in 0..self.output_size {
-            result[j] = zgrad[j] * activationgrad[j];
+            result[j] = zgrad[j] * self.activationgrad[j];
         }
 
         self.biases = weight_update(alpha, self.biases.clone(), result);
-        
     }
 
 
-    pub fn activation_grad(&mut self, weights: Matrix, agradnext: &Vec<f64>, anext: Vec<f64>, loss: &LossFunction) {
+    pub fn activation_grad_backwards(&mut self, weights: Matrix, agradnext: &Vec<f64>, anext: Vec<f64>, loss: &LossFunction) {
         use crate::linalg::*;
         let mut result = vec![0.0; self.output_size];
         let zgradnext = self.activation.backward(&anext, loss);
         let tweights = transpose(weights.clone());
-        let first = dot_product(&agradnext, &zgradnext);
-
+        let actgradnext = elementwise_mul(&agradnext, &zgradnext);
 
         for k in 0..self.output_size {
-            result[k] = tweights.data[k].iter().map(|&x| x * first).sum();
+            result[k] = dot_product(&tweights.data[k], &actgradnext);
         }
 
         self.activationgrad = result;
@@ -106,6 +101,7 @@ impl Layer {
 pub struct Network {
     pub layers: Vec<Layer>,
     pub loss: LossFunction,
+    pub accuracy: f64,
 }
 
 impl Network { 
@@ -113,6 +109,7 @@ impl Network {
         Network {
             layers: Vec::new(),
             loss: LossFunction::MSE,
+            accuracy: 0.0,
         }
     }
 
@@ -141,56 +138,41 @@ impl Network {
     }
 
     pub fn backward(&mut self, inputs: &Vec<f64>, y_true: &Vec<f64>, alpha: f64) {
-        // the last layer is special... calculate the gradients for the last activations
-        let mut activationgrad: Vec<f64> = vec![];
-        let index: usize = self.layers.len() - 1;
 
+        // the last layer is special... calculate the gradients for the last activations with loss function
+        let index: usize = self.layers.len() - 1; // last layer
         let outputs = self.layers[index].activationdata.clone();
+        self.layers[index].activationgrad = self.loss.backward(&outputs, &y_true);
 
-        activationgrad.append(&mut self.loss.backward(&outputs, &y_true));
-
-        // set the activation of the last layer equal to activationgrad
-        self.layers[index].activationgrad = activationgrad.clone();
 
         // go through the layers backwards
         for i in (0..self.layers.len()).rev() {
 
-            // if next gradient is the end, use the last activation data, otherwise, use the next layer's activationgrad
-            let agradnext = if i == self.layers.len() - 1 {
-                activationgrad.clone()
-            } else {
-                self.layers[i + 1].activationgrad.clone()
-            };
-
-            // if the input is the first layer, use the inputs, otherwise, use the previous layer's activation data
             let input = match i {
                 0 => inputs.clone(),
                 _ => self.layers[i - 1].activationdata.clone(),
             };
 
-            
+
             if i == self.layers.len() - 1 { 
-                // activation grad for the last layer
-                self.layers[i].activationgrad = agradnext.clone();
+                // last layer update (no activation grad)
                 self.layers[i].weight_grad_backwards(&input, &self.loss, alpha);
+                self.layers[i].bias_grad_backwards(&self.loss, alpha);
             } else {
                 // activation grad for the other layers
                 let nextweights = self.layers[i + 1].weights.clone();
                 let anext = self.layers[i + 1].activationdata.clone();
-                //let athis = self.layers[i].activationdata.clone();
+                let agradnext = self.layers[i + 1].activationgrad.clone();
 
-                //update activations
-                self.layers[i].activation_grad(nextweights, &agradnext, anext, &self.loss);
-
-                // bias update is similar to weights
-                //self.layers[i].bias_grad_backwards(&input, &athis, &self.loss, alpha);
+                //update
+                self.layers[i].activation_grad_backwards(nextweights, &agradnext, anext, &self.loss);
                 self.layers[i].bias_grad_backwards(&self.loss, alpha);
                 self.layers[i].weight_grad_backwards(&input, &self.loss, alpha);
             }
 
         }
 
-        }
+    }
 
     pub fn train(&mut self, dataloader: &mut DataLoader, alpha: f64, epochs: usize, verbose: bool) {
         for e in 0..epochs {
@@ -205,17 +187,18 @@ impl Network {
 
             }
 
-            if verbose {
-                let mut correct = 0.0;
-                for i in 0..dataloader.data.len() {
-                    let outputs = self.forward(&dataloader.data[i]);
-                    let outputs = self.classify(&outputs);
-                    if outputs == dataloader.labels[i] {
-                        correct += 1.0;
-                    }
+            let mut correct = 0.0;
+            for i in 0..dataloader.data.len() {
+                let outputs = self.forward(&dataloader.data[i]);
+                let outputs = self.classify(&outputs);
+                if outputs == dataloader.labels[i] {
+                    correct += 1.0;
                 }
+            }
+            if verbose {
                 eprintln!("epoch {:?} loss: {:?}, accuracy: {:?}", e, loss, correct / dataloader.data.len() as f64);
             }
+            self.accuracy = correct / dataloader.data.len() as f64;
         }
     }
 
@@ -361,7 +344,7 @@ mod tests {
         };
 
         let inputs = vec![1.0, 2.0];
-        let mut network = Network { layers: vec![layer.clone(), layer.clone()], loss: LossFunction::MSE};
+        let mut network = Network { layers: vec![layer.clone(), layer.clone()], loss: LossFunction::MSE, accuracy: 0.0 };
         assert_eq!(network.forward(&inputs), vec![27.0, 59.0]);
 
         }
@@ -385,7 +368,7 @@ mod tests {
 
 
     #[test]
-    fn class_network_test() {
+    fn class_network_train() {
         use crate::nn::Network;
         use crate::nn::Layer;
         use crate::activation::Activation;

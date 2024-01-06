@@ -69,7 +69,7 @@ impl Layer {
                 result.data[j][k] = zgrad[j] * inputs[k] * activationgrad[j];
             }
         }
-        //result
+
         self.weights = self.weights.clone() - alpha * result;
     }
 
@@ -80,8 +80,7 @@ impl Layer {
         for j in 0..self.output_size {
             result[j] = zgrad[j] * activationgrad[j];
         }
-        //result
-        //self.biases = self.biases - scalar_mul_vec(alpha, vec)
+
         self.biases = weight_update(alpha, self.biases.clone(), result);
         
     }
@@ -98,8 +97,8 @@ impl Layer {
         for k in 0..self.output_size {
             result[k] = tweights.data[k].iter().map(|&x| x * first).sum();
         }
+
         self.activationgrad = result;
-        //result
     }
 }
 
@@ -411,20 +410,17 @@ mod tests {
                                             vec![1.0],
                                             vec![1.0],
                                             vec![0.0],
-                                            vec![0.0],], 1, false);
+                                            vec![0.0],], 2, false);
 
 
 
-        //let initial_loss = network.forward(&dataloader.data[0]);
         let initial_loss = network.loss.getloss(&network.layers[network.layers.len() - 1].activationdata, &dataloader.labels[0]);
 
         network.train(&mut dataloader, 0.006, 100, false);
 
         let final_loss = network.loss.getloss(&network.layers[network.layers.len() - 1].activationdata, &dataloader.labels[0]);
 
-        //eprintln!("initial network output: {:?}\n, final network output: {:?}", initial, last);
         eprintln!("initial loss: {:?}\n, final loss: {:?}", initial_loss, final_loss);
-        //eprintln!("true output: {:?}\n", dataloader.labels[0]);
 
         //asser that initial loss is greater than final loss
         assert!(initial_loss >= final_loss);
